@@ -30,14 +30,15 @@
 			}
 		]
 	},
+	"packageManager": "pnpm@9.6.0",
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
+		"vscode:prepublish": "pnpm run compile",
 		"compile": "tsc -p ./",
 		"lint": "eslint \"src/**/*.ts\"",
 		"watch": "tsc -watch -p ./",
 		"download-api": "dts dev",
 		"postdownload-api": "dts main",
-		"postinstall": "npm run download-api"
+		"postinstall": "pnpm run download-api"
 	},
 	"devDependencies": {
 		"@types/node": "^20",
