@@ -20,15 +20,19 @@
 	"categories": [
 		"Other"
 	],
-	"activationEvents": [],
+	"activationEvents": [
+		"onView:distrobox.guests"
+	],
 	"main": "./out/extension.js",
 	"contributes": {
-		"commands": [
-			{
-				"command": "extension.helloWorld",
-				"title": "Hello World"
-			}
-		]
+		"views": {
+			"remote": [
+				{
+					"name": "Distrobox Guests",
+					"id": "distrobox.guests"
+				}
+			]
+		}
 	},
 	"packageManager": "pnpm@9.6.0",
 	"scripts": {
