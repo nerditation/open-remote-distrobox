@@ -10,7 +10,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as vscode from 'vscode';
 
-const exec_async = promisify(exec);
+import * as dbx from './distrobox';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
@@ -28,10 +28,9 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 		if (element) {
 			return []
 		} else {
-			const { stdout } = await exec_async("flatpak-spawn --host distrobox list");
-			let distrobox_list_output = stdout.split("\n");
-			distrobox_list_output.shift();
-			return distrobox_list_output;
+			const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
+			const list = await cmd.list().exec();
+			return list.map(distro => distro["name"])
 		}
 	}
 }
