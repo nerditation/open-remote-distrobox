@@ -25,11 +25,30 @@
 	],
 	"main": "./out/extension.js",
 	"contributes": {
+		"commands": [
+			{
+				"command": "open-remote-distrobox.connect",
+				"title": "Connect Current Window to Distrobox Guest",
+				"category": "Distrobox",
+				"icon": "$(vm-connect)"
+			}
+		],
 		"views": {
 			"remote": [
 				{
 					"name": "Distrobox Guests",
-					"id": "distrobox.guests"
+					"id": "distrobox.guests",
+					"remoteName": "distrobox",
+					"group": "targets"
+				}
+			]
+		},
+		"menus": {
+			"view/item/context": [
+				{
+					"command": "open-remote-distrobox.connect",
+					"when": "viewItem == distrobox.guest",
+					"group": "inline"
 				}
 			]
 		}

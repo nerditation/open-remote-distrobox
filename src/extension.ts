@@ -18,11 +18,20 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider("distrobox.guests", new DistroboxLister)
 	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command)
+	)
 }
 
 class DistroboxLister implements vscode.TreeDataProvider<string> {
 	getTreeItem(element: string): vscode.TreeItem | Thenable<vscode.TreeItem> {
-		return new vscode.TreeItem(element)
+		const item = new vscode.TreeItem(element);
+		item.contextValue = "distrobox.guest";
+		// full list of icons: https://code.visualstudio.com/api/references/icons-in-labels
+		// `terminal-linux` is Tux
+		item.iconPath = new vscode.ThemeIcon("terminal-linux");
+		return item;
 	}
 	async getChildren(element?: string | undefined): Promise<string[]> {
 		if (element) {
@@ -33,4 +42,24 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 			return list.map(distro => distro["name"])
 		}
 	}
+}
+
+async function connect_command(name?: string) {
+	if (!name) {
+		const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
+		const selected = await vscode.window.showQuickPick(
+			cmd.list().exec().then(distros => distros.map(distro => distro["name"])),
+			{
+				canPickMany: false
+			}
+		);
+		if (!selected) {
+			return;
+		}
+		name = selected;
+	}
+	vscode.commands.executeCommand("vscode.newWindow", {
+		reuseWindow: true,
+		remoteAuthority: "distrobox+" + encodeURIComponent(name)
+	})
 }
