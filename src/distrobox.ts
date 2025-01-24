@@ -155,7 +155,7 @@ export class ListCommandBuilder {
 	 */
 	public async exec(): Promise<Record<string, string>[]> {
 		const { stdout } = await this.exec_raw();
-		let lines = stdout.split("\n");
+		let lines = stdout.split("\n").filter(line => line != "");
 		const header = lines.shift()!;
 		const fields = header.split("|").map(s => s.trim().toLowerCase());
 		return lines.map((line) => {
