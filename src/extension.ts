@@ -6,8 +6,6 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as vscode from 'vscode';
 
 import * as dbx from './distrobox';
