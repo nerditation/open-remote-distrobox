@@ -21,7 +21,8 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onView:distrobox.guests"
+		"onView:distrobox.guests",
+		"onResolveRemoteAuthority:distrobox"
 	],
 	"main": "./out/extension.js",
 	"contributes": {

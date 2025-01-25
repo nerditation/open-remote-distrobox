@@ -22,6 +22,10 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command)
 	)
+
+	context.subscriptions.push(
+		vscode.workspace.registerRemoteAuthorityResolver("distrobox", new DistroboxResolver())
+	)
 }
 
 class DistroboxLister implements vscode.TreeDataProvider<string> {
@@ -62,4 +66,11 @@ async function connect_command(name?: string) {
 		reuseWindow: true,
 		remoteAuthority: "distrobox+" + encodeURIComponent(name)
 	})
+}
+
+class DistroboxResolver implements vscode.RemoteAuthorityResolver {
+	async resolve(authority: string, context: vscode.RemoteAuthorityResolverContext): Promise<vscode.ResolvedAuthority> {
+		console.log(`resolving ${authority}`);
+		return new vscode.ResolvedAuthority("localhost", 12345)
+	}
 }
