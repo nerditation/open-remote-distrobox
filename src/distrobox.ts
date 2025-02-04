@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-// SPDX-FileCopyrightText: (C) 2024 nerditation <nerditation@users.noreply.github.com>
+// SPDX-FileCopyrightText: (C) 2024, 2025 nerditation <nerditation@users.noreply.github.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,9 +7,50 @@
 
 import * as cp from "child_process";
 
-export class MainCommandBuilder {
+export abstract class CommandLineBuilder {
+	/**
+	 * build
+	 */
+	public abstract build(): string[];
+
+	/**
+	 * exec
+	 */
+	public async exec(): Promise<{ stdout: string, stderr: string }> {
+		let args = this.build();
+		const cmd = args.shift()!;
+		return new Promise((resolve, reject) => {
+			cp.execFile(cmd, args, (error, stdout, stderr) => {
+				if (error != null) {
+					reject(error);
+				} else {
+					resolve({ stdout, stderr })
+				}
+			})
+		})
+	}
+
+	/**
+	 * spawn_raw
+	 */
+	public spawn(opts?: cp.SpawnOptions) {
+		let args = this.build();
+		const cmd = args.shift()!;
+		if (opts?.env) {
+			opts.env = Object.assign({}, process.env, opts.env);
+		}
+		if (opts) {
+			return cp.spawn(cmd, args, opts)
+		} else {
+			return cp.spawn(cmd, args)
+		}
+	}
+}
+
+export class MainCommandBuilder extends CommandLineBuilder {
 
 	constructor(public argv: string[]) {
+		super()
 	}
 
 	/**
@@ -27,6 +68,13 @@ export class MainCommandBuilder {
 	}
 
 	/**
+	 * build
+	 */
+	public build(): string[] {
+		return this.argv
+	}
+
+	/**
 	 * list
 	 */
 	public list(): ListCommandBuilder {
@@ -36,8 +84,8 @@ export class MainCommandBuilder {
 	/**
 	 * enter
 	 */
-	public enter(): EnterCommandBuilder {
-		return new EnterCommandBuilder(this);
+	public enter(name?: string, ...args: string[]): EnterCommandBuilder {
+		return new EnterCommandBuilder(this, name, ...args);
 	}
 }
 
@@ -58,7 +106,7 @@ Options:
 		  --verbose/-v:           show more verbosity
 		  --version/-V:           show version
  */
-export class ListCommandBuilder {
+export class ListCommandBuilder extends CommandLineBuilder {
 	_command: MainCommandBuilder;
 	_help: boolean = false;
 	_no_color: boolean = false;
@@ -67,6 +115,7 @@ export class ListCommandBuilder {
 	_version: boolean = false;
 
 	constructor(command: MainCommandBuilder) {
+		super();
 		this._command = command;
 	}
 
@@ -136,25 +185,8 @@ export class ListCommandBuilder {
 	/**
 	 * exec
 	 */
-	public async exec_raw(): Promise<{ stdout: string, stderr: string }> {
-		let args = this.build();
-		const cmd = args.shift()!;
-		return new Promise((resolve, reject) => {
-			cp.execFile(cmd, args, (error, stdout, stderr) => {
-				if (error != null) {
-					reject(error);
-				} else {
-					resolve({ stdout, stderr })
-				}
-			})
-		})
-	}
-
-	/**
-	 * exec
-	 */
-	public async exec(): Promise<Record<string, string>[]> {
-		const { stdout } = await this.exec_raw();
+	public async run(): Promise<Record<string, string>[]> {
+		const { stdout } = await this.exec();
 		let lines = stdout.split("\n").filter(line => line != "");
 		const header = lines.shift()!;
 		const fields = header.split("|").map(s => s.trim().toLowerCase());
@@ -195,7 +227,7 @@ Options:
 		  --version/-V:           show version
 
  */
-export class EnterCommandBuilder {
+export class EnterCommandBuilder extends CommandLineBuilder {
 	_command: MainCommandBuilder;
 	_name?: string;
 	_clean_path: boolean = false;
@@ -210,12 +242,11 @@ export class EnterCommandBuilder {
 
 	_args: string[] = [];
 
-	constructor(command: MainCommandBuilder, name?: string, args?: string[]) {
+	constructor(command: MainCommandBuilder, name?: string, ...args: string[]) {
+		super();
 		this._command = command;
 		this._name = name;
-		if (args) {
-			this._args = args;
-		}
+		this._args = args;
 	}
 
 	/**
@@ -345,25 +376,8 @@ export class EnterCommandBuilder {
 		}
 
 		argv.push("--");
-		argv.concat(this._args);
 
-		return argv;
+		return argv.concat(this._args);
 	}
 
-	/**
-	 * exec
-	 */
-	public async exec_raw(): Promise<{ stdout: string, stderr: string }> {
-		let args = this.build();
-		const cmd = args.shift()!;
-		return new Promise((resolve, reject) => {
-			cp.execFile(cmd, args, (error, stdout, stderr) => {
-				if (error != null) {
-					reject(error);
-				} else {
-					resolve({ stdout, stderr })
-				}
-			})
-		})
-	}
 }

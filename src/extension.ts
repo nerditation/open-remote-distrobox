@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MPL-2.0
-// SPDX-FileCopyrightText: (C) 2024 nerditation <nerditation@users.noreply.github.com>
+// SPDX-FileCopyrightText: (C) 2024, 2025 nerditation <nerditation@users.noreply.github.com>
 //
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -40,7 +40,7 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 			return []
 		} else {
 			const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
-			const list = await cmd.list().exec();
+			const list = await cmd.list().run();
 			return list.map(distro => distro["name"])
 		}
 	}
@@ -50,7 +50,7 @@ async function connect_command(name?: string) {
 	if (!name) {
 		const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
 		const selected = await vscode.window.showQuickPick(
-			cmd.list().exec().then(distros => distros.map(distro => distro["name"])),
+			cmd.list().run().then(distros => distros.map(distro => distro["name"])),
 			{
 				canPickMany: false
 			}
