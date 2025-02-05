@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 
 import * as dbx from './distrobox';
-import { server_binary_path, system_identifier } from './remote';
+import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
@@ -140,6 +140,59 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 		const running_port2 = parseInt(output2, 10);
 		if (!isNaN(running_port2)) {
 			return new vscode.ResolvedAuthority("localhost", running_port2)
+		}
+
+		const downloader = await fetch(server_download_url('linux', 'x64'));
+		// TODO: what if server didn't send `Content-Length` header?
+		const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
+		let buffer: Uint8Array[] = [];
+		vscode.window.withProgress({
+			location: vscode.ProgressLocation.Notification,
+			title: "downloading vscodium-reh",
+		}, async (progress, candel) => {
+			for await (const chunk of downloader.body!) {
+				const bytes = chunk as Uint8Array;
+				progress.report({
+					increment: bytes.length * 100 / total_size
+				});
+				buffer.push(bytes);
+			}
+		})
+		console.log("download successful");
+
+		// I use `--no-workdir` and relative path for this.
+		// alternative is to spawn a shell and use $HOME
+		await cmd.enter(
+			guest_name,
+			"mkdir",
+			"-p",
+			`${server_extract_path('linux', 'x64')}`
+		)
+			.no_workdir()
+			.exec();
+		const tar = cmd.enter(
+			guest_name,
+			"tar",
+			"-xz",
+			"-C",
+			`${server_extract_path('linux', 'x64')}`
+		)
+			.no_tty()
+			.no_workdir()
+			.spawn({
+				stdio: ['pipe', 'inherit', 'inherit']
+			});
+		for (const chunk of buffer) {
+			await new Promise<void>((resolve, reject) => {
+				tar.stdin?.write(chunk, (err) => {
+					if (err) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				})
+			});
+			console.log(".");
 		}
 		throw ("todo: download and extract server")
 	}
