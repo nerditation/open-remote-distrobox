@@ -89,39 +89,43 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 
 		// I use `--no-workdir` and relative path for this.
 		// alternative is to spawn a shell and use $HOME
-		await cmd.enter(
-			guest_name,
-			"mkdir",
-			"-p",
-			`${server_extract_path('linux', 'x64')}`
-		)
-			.no_workdir()
-			.exec();
-		const tar = cmd.enter(
-			guest_name,
-			"tar",
-			"-xz",
-			"-C",
-			`${server_extract_path('linux', 'x64')}`
-		)
-			.no_tty()
-			.no_workdir()
-			.spawn({
-				stdio: ['pipe', 'inherit', 'inherit']
-			});
-		for (const chunk of buffer) {
-			await new Promise<void>((resolve, reject) => {
-				tar.stdin?.write(chunk, (err) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve();
-					}
-				})
-			});
-			console.log(".");
-		}
+		await extract_server_tarball(cmd, guest_name, buffer);
 		throw ("todo: download and extract server")
+	}
+}
+
+async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: string, buffer: Uint8Array<ArrayBufferLike>[]) {
+	await cmd.enter(
+		guest_name,
+		"mkdir",
+		"-p",
+		`${server_extract_path('linux', 'x64')}`
+	)
+		.no_workdir()
+		.exec();
+	const tar = cmd.enter(
+		guest_name,
+		"tar",
+		"-xz",
+		"-C",
+		`${server_extract_path('linux', 'x64')}`
+	)
+		.no_tty()
+		.no_workdir()
+		.spawn({
+			stdio: ['pipe', 'inherit', 'inherit']
+		});
+	for (const chunk of buffer) {
+		await new Promise<void>((resolve, reject) => {
+			tar.stdin?.write(chunk, (err) => {
+				if (err) {
+					reject(err);
+				} else {
+					resolve();
+				}
+			});
+		});
+		console.log(".");
 	}
 }
 
