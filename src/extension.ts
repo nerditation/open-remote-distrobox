@@ -85,23 +85,7 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 			return new vscode.ResolvedAuthority("localhost", running_port2)
 		}
 
-		const downloader = await fetch(server_download_url('linux', 'x64'));
-		// TODO: what if server didn't send `Content-Length` header?
-		const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
-		let buffer: Uint8Array[] = [];
-		vscode.window.withProgress({
-			location: vscode.ProgressLocation.Notification,
-			title: "downloading vscodium-reh",
-		}, async (progress, candel) => {
-			for await (const chunk of downloader.body!) {
-				const bytes = chunk as Uint8Array;
-				progress.report({
-					increment: bytes.length * 100 / total_size
-				});
-				buffer.push(bytes);
-			}
-		})
-		console.log("download successful");
+		let buffer: Uint8Array[] = await download_server_tarball();
 
 		// I use `--no-workdir` and relative path for this.
 		// alternative is to spawn a shell and use $HOME
@@ -139,6 +123,27 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 		}
 		throw ("todo: download and extract server")
 	}
+}
+
+async function download_server_tarball() {
+	const downloader = await fetch(server_download_url('linux', 'x64'));
+	// TODO: what if server didn't send `Content-Length` header?
+	const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
+	let buffer: Uint8Array[] = [];
+	vscode.window.withProgress({
+		location: vscode.ProgressLocation.Notification,
+		title: "downloading vscodium-reh",
+	}, async (progress, candel) => {
+		for await (const chunk of downloader.body!) {
+			const bytes = chunk as Uint8Array;
+			progress.report({
+				increment: bytes.length * 100 / total_size
+			});
+			buffer.push(bytes);
+		}
+	});
+	console.log("download successful");
+	return buffer;
 }
 
 async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: string) {
