@@ -73,26 +73,7 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 		const [_remote, guest_name_encoded] = authority.split('+', 2);
 		const guest_name = decodeURIComponent(guest_name_encoded);
 		const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
-		const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-		// TODO: PLACEHOLDER:
-		// probe os and architecture properly
-		shell.stdin?.write(
-			`
-			PORT_FILE=\${XDG_RUNTIME_DIR}/vscodium-reh-${system_identifier('linux', 'x64')}/port
-			if [ -f \$PORT_FILE ]; then
-				cat \$PORT_FILE;
-			else
-				echo NOT RUNNING;
-			fi
-			`
-		);
-		shell.stdin?.end();
-		const output: string = await new Promise((resolve, reject) => {
-			shell.stdout?.on('error', reject);
-			let buffer = "";
-			shell.stdout?.on('data', (chunk) => buffer += new TextDecoder("utf8").decode(chunk));
-			shell.stdout?.on('end', () => resolve(buffer))
-		});
+		const output: string = await find_running_server_port(cmd, guest_name);
 		const running_port = parseInt(output, 10);
 		if (!isNaN(running_port)) {
 			return new vscode.ResolvedAuthority("localhost", running_port)
@@ -196,4 +177,28 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 		}
 		throw ("todo: download and extract server")
 	}
+}
+
+async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name: string) {
+	const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
+	// TODO: PLACEHOLDER:
+	// probe os and architecture properly
+	shell.stdin?.write(
+		`
+			PORT_FILE=\${XDG_RUNTIME_DIR}/vscodium-reh-${system_identifier('linux', 'x64')}/port
+			if [ -f \$PORT_FILE ]; then
+				cat \$PORT_FILE;
+			else
+				echo NOT RUNNING;
+			fi
+			`
+	);
+	shell.stdin?.end();
+	const output: string = await new Promise((resolve, reject) => {
+		shell.stdout?.on('error', reject);
+		let buffer = "";
+		shell.stdout?.on('data', (chunk) => buffer += new TextDecoder("utf8").decode(chunk));
+		shell.stdout?.on('end', () => resolve(buffer));
+	});
+	return output;
 }
