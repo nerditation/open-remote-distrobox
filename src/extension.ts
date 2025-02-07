@@ -67,39 +67,61 @@ async function connect_command(name?: string) {
 	})
 }
 
+const HOST_ARCH = require('os').arch();
+
 class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 	async resolve(authority: string, context: vscode.RemoteAuthorityResolverContext): Promise<vscode.ResolvedAuthority> {
 		console.log(`resolving ${authority}`);
 		const [_remote, guest_name_encoded] = authority.split('+', 2);
 		const guest_name = decodeURIComponent(guest_name_encoded);
 		const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
-		const output: string = await find_running_server_port(cmd, guest_name);
+
+		let os = "linux";
+		let arch = HOST_ARCH;
+		const { stdout: ldd_info } = await cmd.enter(guest_name, "ldd", "--version").exec();
+		// `lsb_release` might not be installed on alpine
+		// I just check for the `musl` libc, which is the libc used by `alpine`
+		// I could also check `/etc/os-release` too, but it's good enough for me.
+		const is_musl = ldd_info.match(/musl libc (.+)/);
+		if (is_musl) {
+			os = "alpine";
+			arch = linux_arch_to_nodejs_arch(is_musl[1]);
+		} else if (ldd_info.match(/GNU libc/)) {
+			// glibc's ldd doesn't show the archtecture, need probe further
+			// can't use `uname`, 32 bit guests can run on 64 bit host
+			const { stdout: ldd_info } = await cmd.enter(guest_name, "ldd", "/bin/sh").exec();
+			const glibc_ld_path = ldd_info.match(/\/lib(64)?\/ld-linux-(.+).so/)!;
+			arch = linux_arch_to_nodejs_arch(glibc_ld_path[2]);
+		} else {
+			throw ("distro's libc is neither musl nor glibc")
+		}
+		const output: string = await find_running_server_port(cmd, guest_name, os, arch);
 		const running_port = parseInt(output, 10);
 		if (!isNaN(running_port)) {
 			return new vscode.ResolvedAuthority("localhost", running_port)
 		}
 
-		const output2: string = await try_start_new_server(cmd, guest_name);
+		const output2: string = await try_start_new_server(cmd, guest_name, os, arch);
 		const running_port2 = parseInt(output2, 10);
 		if (!isNaN(running_port2)) {
 			return new vscode.ResolvedAuthority("localhost", running_port2)
 		}
 
-		let buffer: Uint8Array[] = await download_server_tarball();
+		let buffer: Uint8Array[] = await download_server_tarball(os, arch);
 
 		// I use `--no-workdir` and relative path for this.
 		// alternative is to spawn a shell and use $HOME
-		await extract_server_tarball(cmd, guest_name, buffer);
+		await extract_server_tarball(cmd, guest_name, buffer, os, arch);
 		throw ("todo: download and extract server")
 	}
 }
 
-async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: string, buffer: Uint8Array<ArrayBufferLike>[]) {
+async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: string, buffer: Uint8Array<ArrayBufferLike>[], os: string, arch: string) {
 	await cmd.enter(
 		guest_name,
 		"mkdir",
 		"-p",
-		`${server_extract_path('linux', 'x64')}`
+		`${server_extract_path(os, arch)}`
 	)
 		.no_workdir()
 		.exec();
@@ -108,7 +130,7 @@ async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: s
 		"tar",
 		"-xz",
 		"-C",
-		`${server_extract_path('linux', 'x64')}`
+		`${server_extract_path(os, arch)}`
 	)
 		.no_tty()
 		.no_workdir()
@@ -129,8 +151,8 @@ async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: s
 	}
 }
 
-async function download_server_tarball() {
-	const downloader = await fetch(server_download_url('linux', 'x64'));
+async function download_server_tarball(os: string, arch: string) {
+	const downloader = await fetch(server_download_url(os, arch));
 	// TODO: what if server didn't send `Content-Length` header?
 	const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
 	let buffer: Uint8Array[] = [];
@@ -150,17 +172,15 @@ async function download_server_tarball() {
 	return buffer;
 }
 
-async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: string) {
+async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string) {
 	const shell2 = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-	// TODO: PLACEHOLDER:
-	// probe os and architecture properly
 	shell2.stdin?.write(
 		`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier('linux', 'x64')}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
 			LOG_FILE=$RUN_DIR/log
 			PID_FILE=$RUN_DIR/pid
 			PORT_FILE=$RUN_DIR/port
-			SERVER_FILE=$HOME/${server_binary_path('linux', 'x64')}
+			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
 			if [[ -f $SERVER_FILE ]]; then
 				nohup $SERVER_FILE --accept-server-license-terms --telemetry-level off --host localhost --port 0 --without-connection-token > $LOG_FILE &
 				echo $! > $PID_FILE
@@ -193,13 +213,11 @@ async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: str
 	return output2;
 }
 
-async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name: string) {
+async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string) {
 	const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-	// TODO: PLACEHOLDER:
-	// probe os and architecture properly
 	shell.stdin?.write(
 		`
-			PORT_FILE=\${XDG_RUNTIME_DIR}/vscodium-reh-${system_identifier('linux', 'x64')}/port
+			PORT_FILE=\${XDG_RUNTIME_DIR}/vscodium-reh-${system_identifier(os, arch)}/port
 			if [ -f \$PORT_FILE ]; then
 				cat \$PORT_FILE;
 			else
@@ -215,4 +233,20 @@ async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name:
 		shell.stdout?.on('end', () => resolve(buffer));
 	});
 	return output;
+}
+
+function linux_arch_to_nodejs_arch(arch: string): string {
+	// TODO:
+	// I don't have arm system to test
+	switch (arch) {
+		case "x86-64":
+		case "amd64":
+			return "x64";
+		case "i386":
+		case "i686":
+			return "ia32";
+		default:
+			console.log(`TODO linux arch ${arch}`);
+			return arch;
+	}
 }
