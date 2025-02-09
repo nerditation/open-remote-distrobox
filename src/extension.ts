@@ -182,6 +182,7 @@ async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: str
 			PORT_FILE=$RUN_DIR/port
 			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
 			if [[ -f $SERVER_FILE ]]; then
+				mkdir -p $RUN_DIR
 				nohup $SERVER_FILE --accept-server-license-terms --telemetry-level off --host localhost --port 0 --without-connection-token > $LOG_FILE &
 				echo $! > $PID_FILE
 
