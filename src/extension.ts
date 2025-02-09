@@ -101,18 +101,19 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 			return new vscode.ResolvedAuthority("localhost", running_port)
 		}
 
+		if (!await is_server_installed(cmd, guest_name, os, arch)) {
+			let buffer: Uint8Array[] = await download_server_tarball(os, arch);
+			// I use `--no-workdir` and relative path for this.
+			// alternative is to spawn a shell and use $HOME
+			await extract_server_tarball(cmd, guest_name, buffer, os, arch);
+		}
+
 		const output2: string = await try_start_new_server(cmd, guest_name, os, arch);
 		const running_port2 = parseInt(output2, 10);
 		if (!isNaN(running_port2)) {
 			return new vscode.ResolvedAuthority("localhost", running_port2)
 		}
-
-		let buffer: Uint8Array[] = await download_server_tarball(os, arch);
-
-		// I use `--no-workdir` and relative path for this.
-		// alternative is to spawn a shell and use $HOME
-		await extract_server_tarball(cmd, guest_name, buffer, os, arch);
-		throw ("todo: download and extract server")
+		throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
 	}
 }
 
@@ -250,4 +251,26 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 			console.log(`TODO linux arch ${arch}`);
 			return arch;
 	}
+}
+
+async function is_server_installed(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string): Promise<boolean> {
+	const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
+	shell.stdin?.write(
+		`
+			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
+			if [[ -f $SERVER_FILE ]]; then
+				echo true
+			else
+				echo false
+			fi
+			`
+	);
+	shell.stdin?.end();
+	const output: string = await new Promise((resolve, reject) => {
+		shell.stdout?.on('error', reject);
+		let buffer = "";
+		shell.stdout?.on('data', (chunk) => buffer += new TextDecoder("utf8").decode(chunk));
+		shell.stdout?.on('end', () => resolve(buffer));
+	});
+	return output.trim() == "true"
 }
