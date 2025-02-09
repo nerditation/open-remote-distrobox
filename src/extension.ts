@@ -156,7 +156,7 @@ async function download_server_tarball(os: string, arch: string) {
 	// TODO: what if server didn't send `Content-Length` header?
 	const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
 	let buffer: Uint8Array[] = [];
-	vscode.window.withProgress({
+	await vscode.window.withProgress({
 		location: vscode.ProgressLocation.Notification,
 		title: "downloading vscodium-reh",
 	}, async (progress, candel) => {
