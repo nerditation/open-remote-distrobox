@@ -150,6 +150,7 @@ async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: s
 		});
 		console.log(".");
 	}
+	await new Promise<void>((resolve, reject) => tar.stdin?.end(resolve));
 }
 
 async function download_server_tarball(os: string, arch: string) {
