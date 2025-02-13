@@ -98,6 +98,7 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 		const output: string = await find_running_server_port(cmd, guest_name, os, arch);
 		const running_port = parseInt(output, 10);
 		if (!isNaN(running_port)) {
+			console.log(`running at ${running_port}`);
 			return new vscode.ResolvedAuthority("localhost", running_port)
 		}
 
@@ -111,6 +112,7 @@ class DistroboxResolver implements vscode.RemoteAuthorityResolver {
 		const output2: string = await try_start_new_server(cmd, guest_name, os, arch);
 		const running_port2 = parseInt(output2, 10);
 		if (!isNaN(running_port2)) {
+			console.log(`new at ${running_port2}`);
 			return new vscode.ResolvedAuthority("localhost", running_port2)
 		}
 		throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
@@ -182,7 +184,16 @@ async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: str
 			LOG_FILE=$RUN_DIR/log
 			PID_FILE=$RUN_DIR/pid
 			PORT_FILE=$RUN_DIR/port
+			COUNT_FILE=$RUN_DIR/count
+
 			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
+
+			# open lock file
+			exec 200> $LOCK_FILE
+
+			# enter critical section
+			flock -x 200
+
 			if [[ -f $SERVER_FILE ]]; then
 				mkdir -p $RUN_DIR
 				nohup $SERVER_FILE --accept-server-license-terms --telemetry-level off --host localhost --port 0 --without-connection-token > $LOG_FILE &
@@ -197,6 +208,7 @@ async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: str
 				done
 
 				if [[ -n $LISTENING_ON ]]; then
+					echo "1" > $COUNT_FILE
 					echo $LISTENING_ON | tee $PORT_FILE
 				else
 					echo ERROR
@@ -220,9 +232,22 @@ async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name:
 	const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
 	shell.stdin?.write(
 		`
-			PORT_FILE=\${XDG_RUNTIME_DIR}/vscodium-reh-${system_identifier(os, arch)}/port
-			if [ -f \$PORT_FILE ]; then
-				cat \$PORT_FILE;
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
+			LOCK_FILE=$RUN_DIR/lock
+			COUNT_FILE=$RUN_DIR/count
+			PORT_FILE=$RUN_DIR/port
+
+			# open lock file
+			exec 200> $LOCK_FILE
+
+			# enter critical section
+			flock -x 200
+
+			if [[ -f $PORT_FILE ]]; then
+				count=$(cat $COUNT_FILE)
+				count=$(($count + 1))
+				echo $count > $COUNT_FILE
+				cat $PORT_FILE
 			else
 				echo NOT RUNNING;
 			fi
