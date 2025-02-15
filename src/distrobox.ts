@@ -45,6 +45,21 @@ export abstract class CommandLineBuilder {
 			return cp.spawn(cmd, args)
 		}
 	}
+
+	/**
+	 * pipe
+	 */
+	public pipe(input: any): Promise<Buffer> {
+		const child = this.spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
+		child.stdin?.write(input);
+		child.stdin?.end();
+		return new Promise((resolve, reject) => {
+			child.stdout?.on('error', reject);
+			let output_chunks: Uint8Array[] = []
+			child.stdout?.on('data', (chunk) => output_chunks.push(chunk as Uint8Array));
+			child.stdout?.on('end', () => resolve(Buffer.concat(output_chunks)));
+		});
+	}
 }
 
 export class MainCommandBuilder extends CommandLineBuilder {

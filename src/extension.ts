@@ -177,8 +177,7 @@ async function download_server_tarball(os: string, arch: string) {
 }
 
 async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string) {
-	const shell2 = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-	shell2.stdin?.write(
+	const output = await cmd.enter(guest_name, "bash").pipe(
 		`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
 			LOG_FILE=$RUN_DIR/log
@@ -218,19 +217,11 @@ async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: str
 			fi
 			`
 	);
-	shell2.stdin?.end();
-	const output2: string = await new Promise((resolve, reject) => {
-		shell2.stdout?.on('error', reject);
-		let buffer = "";
-		shell2.stdout?.on('data', (chunk) => buffer += new TextDecoder("utf8").decode(chunk));
-		shell2.stdout?.on('end', () => resolve(buffer));
-	});
-	return output2;
+	return new TextDecoder('utf8').decode(output)
 }
 
 async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string) {
-	const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-	shell.stdin?.write(
+	const output = await cmd.enter(guest_name, "bash").pipe(
 		`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
 			LOCK_FILE=$RUN_DIR/lock
@@ -253,14 +244,7 @@ async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name:
 			fi
 			`
 	);
-	shell.stdin?.end();
-	const output: string = await new Promise((resolve, reject) => {
-		shell.stdout?.on('error', reject);
-		let buffer = "";
-		shell.stdout?.on('data', (chunk) => buffer += new TextDecoder("utf8").decode(chunk));
-		shell.stdout?.on('end', () => resolve(buffer));
-	});
-	return output;
+	return new TextDecoder('utf8').decode(output)
 }
 
 function linux_arch_to_nodejs_arch(arch: string): string {
@@ -280,8 +264,8 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 }
 
 async function is_server_installed(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string): Promise<boolean> {
-	const shell = cmd.enter(guest_name, "bash").spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-	shell.stdin?.write(
+	const output = await cmd.enter(guest_name, "bash").pipe(
+
 		`
 			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
 			if [[ -f $SERVER_FILE ]]; then
@@ -291,12 +275,5 @@ async function is_server_installed(cmd: dbx.MainCommandBuilder, guest_name: stri
 			fi
 			`
 	);
-	shell.stdin?.end();
-	const output: string = await new Promise((resolve, reject) => {
-		shell.stdout?.on('error', reject);
-		let buffer = "";
-		shell.stdout?.on('data', (chunk) => buffer += new TextDecoder("utf8").decode(chunk));
-		shell.stdout?.on('end', () => resolve(buffer));
-	});
-	return output.trim() == "true"
+	return new TextDecoder('utf8').decode(output).trim() == "true"
 }
