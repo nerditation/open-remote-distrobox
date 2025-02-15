@@ -6,6 +6,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import * as cp from "child_process";
+import which = require("which");
 
 export abstract class CommandLineBuilder {
 	/**
@@ -73,17 +74,44 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	}
 
 	/**
-	 * default
+	 * auto
 	 */
-	public static default(): MainCommandBuilder {
-		return new MainCommandBuilder(["distrobox"])
-	}
-
-	/**
-	 * from_flatpak
-	 */
-	public static flatpak_spawn_host(): MainCommandBuilder {
-		return new MainCommandBuilder(["flatpak-spawn", "--host", "distrobox"])
+	public static async auto(): Promise<MainCommandBuilder> {
+		try {
+			const distrobox_path = await which('distrobox');
+			console.log(`found distrobox: ${distrobox_path}`)
+			return new MainCommandBuilder([distrobox_path])
+		} catch {
+			console.log("local distrobox not found")
+		}
+		try {
+			const flatpak_spawn_path = await which('flatpak-spawn');
+			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`)
+			const banner = await new Promise<string>((resolve, reject) => {
+				cp.execFile(
+					flatpak_spawn_path,
+					['--host', 'distrobox', '--version'],
+					(error, stdout) => {
+						if (error) {
+							reject(error)
+						} else {
+							resolve(stdout)
+						}
+					})
+			});
+			console.log(`found distrobox on flatpak host: ${banner}`)
+			return new MainCommandBuilder([flatpak_spawn_path, '--host', 'distrobox'])
+		} catch {
+			console.log("didn't find distrobox on flatpak host")
+		}
+		try {
+			const distrobox_host_exec_path = await which('distrobox-host-exec');
+			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`)
+			return new MainCommandBuilder([distrobox_host_exec_path, 'distrobox'])
+		} catch {
+			console.log("not inside distrobox guest")
+		}
+		throw ("didn't find distrobox command")
 	}
 
 	/**

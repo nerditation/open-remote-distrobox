@@ -15,7 +15,7 @@ import { DistroboxResolver } from './resolver';
 // have to use the `deactivate()` hook
 let resolved: DistroboxResolver | undefined;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
 
 	context.subscriptions.push(
@@ -33,7 +33,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 				const [_remote, guest_name_encoded] = authority.split('+', 2);
 				const guest_name = decodeURIComponent(guest_name_encoded);
-				const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
+				const cmd = await dbx.MainCommandBuilder.auto();
 
 				const resolver = await DistroboxResolver.for_guest_distro(cmd, guest_name);
 
@@ -81,7 +81,7 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 		if (element) {
 			return []
 		} else {
-			const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
+			const cmd = await dbx.MainCommandBuilder.auto();
 			const list = await cmd.list().run();
 			return list.map(distro => distro["name"])
 		}
@@ -90,7 +90,7 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 
 async function connect_command(name?: string) {
 	if (!name) {
-		const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
+		const cmd = await dbx.MainCommandBuilder.auto();
 		const selected = await vscode.window.showQuickPick(
 			cmd.list().run().then(distros => distros.map(distro => distro["name"])),
 			{
