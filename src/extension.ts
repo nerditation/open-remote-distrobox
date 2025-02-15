@@ -11,6 +11,10 @@ import * as vscode from 'vscode';
 import * as dbx from './distrobox';
 import { DistroboxResolver } from './resolver';
 
+// `context.subscriptions` does NOT await async operations
+// have to use the `deactivate()` hook
+let resolved: DistroboxResolver | undefined;
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
 
@@ -36,6 +40,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const running_port = parseInt((await resolver.find_running_server_port()), 10);
 				if (!isNaN(running_port)) {
 					console.log(`running server listening at ${running_port}`);
+					resolved = resolver;
 					return new vscode.ResolvedAuthority("localhost", running_port)
 				}
 
@@ -47,12 +52,20 @@ export function activate(context: vscode.ExtensionContext) {
 				const new_port = parseInt((await resolver.try_start_new_server()), 10);
 				if (!isNaN(new_port)) {
 					console.log(`new server started at ${new_port}`);
+					resolved = resolver;
 					return new vscode.ResolvedAuthority("localhost", new_port)
 				}
 				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
 			},
 		})
 	)
+}
+
+export async function deactivate() {
+	console.log("deactivation")
+	if (resolved) {
+		await resolved.shutdown_server();
+	}
 }
 
 class DistroboxLister implements vscode.TreeDataProvider<string> {
