@@ -22,11 +22,11 @@ export class DistroboxResolver {
 
 	public static async for_guest_distro(cmd: dbx.MainCommandBuilder, name: string): Promise<DistroboxResolver> {
 		const resolver = new DistroboxResolver(cmd, name);
-		const { stdout: ldd_info } = await cmd.enter(name, "ldd", "--version").exec();
+		const { stdout: ldd_info, stderr: ldd_info_err } = await cmd.enter(name, "ldd", "--version").exec();
 		// `lsb_release` might not be installed on alpine
 		// I just check for the `musl` libc, which is the libc used by `alpine`
 		// I could also check `/etc/os-release` too, but it's good enough for me.
-		const is_musl = ldd_info.match(/musl libc (.+)/);
+		const is_musl = ldd_info_err.match(/musl libc \((.+)\)/);
 		if (is_musl) {
 			resolver.os = "alpine";
 			resolver.arch = linux_arch_to_nodejs_arch(is_musl[1]);
@@ -105,7 +105,7 @@ export class DistroboxResolver {
 		const { cmd, name, os, arch } = this;
 		const output = await cmd.enter(name, "bash").pipe(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
 			LOG_FILE=$RUN_DIR/log
 			PID_FILE=$RUN_DIR/pid
 			PORT_FILE=$RUN_DIR/port
@@ -125,7 +125,9 @@ export class DistroboxResolver {
 				echo $! > $PID_FILE
 
 				for i in {1..5}; do
-					LISTENING_ON="$(grep -oP '(?<=Extension host agent listening on )\\d+' $LOG_FILE)"
+					# alpine doesn't have gnu grep, Perl regex is not supported by busybox
+					#LISTENING_ON="$(grep -oP '(?<=Extension host agent listening on )\\d+' $LOG_FILE)"
+					LISTENING_ON=$(sed -n 's/.*Extension host agent listening on \\([0-9]\\+\\).*/\\1/p' $LOG_FILE)
 					if [[ -n $LISTENING_ON ]]; then
 						break
 					fi
@@ -150,7 +152,7 @@ export class DistroboxResolver {
 		const { cmd, name, os, arch } = this;
 		const output = await cmd.enter(name, "bash").pipe(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
 			LOCK_FILE=$RUN_DIR/lock
 			COUNT_FILE=$RUN_DIR/count
 			PORT_FILE=$RUN_DIR/port
@@ -197,7 +199,7 @@ export class DistroboxResolver {
 		const { cmd, name, os, arch } = this;
 		await cmd.enter(name, "bash").pipe(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
 			LOCK_FILE=$RUN_DIR/lock
 			COUNT_FILE=$RUN_DIR/count
 			PORT_FILE=$RUN_DIR/port
@@ -226,6 +228,7 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 	// TODO:
 	// I don't have arm system to test
 	switch (arch) {
+		case "x86_64":
 		case "x86-64":
 		case "amd64":
 			return "x64";
@@ -233,7 +236,7 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 		case "i686":
 			return "ia32";
 		default:
-			console.log(`TODO linux arch ${arch}`);
+			throw (`TODO linux arch ${arch}`)
 			return arch;
 	}
 }

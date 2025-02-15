@@ -16,15 +16,19 @@ export abstract class CommandLineBuilder {
 	/**
 	 * exec
 	 */
-	public async exec(): Promise<{ stdout: string, stderr: string }> {
+	public async exec(): Promise<{ exit_code: string | number, stdout: string, stderr: string }> {
 		let args = this.build();
 		const cmd = args.shift()!;
 		return new Promise((resolve, reject) => {
 			cp.execFile(cmd, args, (error, stdout, stderr) => {
 				if (error != null) {
-					reject(error);
+					if (error.killed) {
+						reject(error);
+					} else {
+						resolve({ exit_code: error.code ?? -1, stdout, stderr })
+					}
 				} else {
-					resolve({ stdout, stderr })
+					resolve({ exit_code: 0, stdout, stderr })
 				}
 			})
 		})
