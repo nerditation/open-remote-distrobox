@@ -51,6 +51,13 @@
 					"when": "viewItem == distrobox.guest",
 					"group": "inline"
 				}
+			],
+			"statusBar/remoteIndicator": [
+				{
+					"command": "open-remote-distrobox.connect",
+					"when": "isLinux",
+					"group": "remote_20_distrobox_statusbar"
+				}
 			]
 		}
 	},
