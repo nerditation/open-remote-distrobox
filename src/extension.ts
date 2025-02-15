@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 
 import * as dbx from './distrobox';
-import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
+import { DistroboxResolver } from './resolver';
 
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
@@ -23,7 +23,35 @@ export function activate(context: vscode.ExtensionContext) {
 	)
 
 	context.subscriptions.push(
-		vscode.workspace.registerRemoteAuthorityResolver("distrobox", new DistroboxResolver())
+		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
+			async resolve(authority, context) {
+				console.log(`resolving ${authority}`);
+
+				const [_remote, guest_name_encoded] = authority.split('+', 2);
+				const guest_name = decodeURIComponent(guest_name_encoded);
+				const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
+
+				const resolver = await DistroboxResolver.for_guest_distro(cmd, guest_name);
+
+				const running_port = parseInt((await resolver.find_running_server_port()), 10);
+				if (!isNaN(running_port)) {
+					console.log(`running server listening at ${running_port}`);
+					return new vscode.ResolvedAuthority("localhost", running_port)
+				}
+
+				if (!await resolver.is_server_installed()) {
+					let buffer: Uint8Array[] = await resolver.download_server_tarball();
+					await resolver.extract_server_tarball(buffer);
+				}
+
+				const new_port = parseInt((await resolver.try_start_new_server()), 10);
+				if (!isNaN(new_port)) {
+					console.log(`new server started at ${new_port}`);
+					return new vscode.ResolvedAuthority("localhost", new_port)
+				}
+				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
+			},
+		})
 	)
 }
 
@@ -65,215 +93,4 @@ async function connect_command(name?: string) {
 		reuseWindow: true,
 		remoteAuthority: "distrobox+" + encodeURIComponent(name)
 	})
-}
-
-const HOST_ARCH = require('os').arch();
-
-class DistroboxResolver implements vscode.RemoteAuthorityResolver {
-	async resolve(authority: string, context: vscode.RemoteAuthorityResolverContext): Promise<vscode.ResolvedAuthority> {
-		console.log(`resolving ${authority}`);
-		const [_remote, guest_name_encoded] = authority.split('+', 2);
-		const guest_name = decodeURIComponent(guest_name_encoded);
-		const cmd = dbx.MainCommandBuilder.flatpak_spawn_host();
-
-		let os = "linux";
-		let arch = HOST_ARCH;
-		const { stdout: ldd_info } = await cmd.enter(guest_name, "ldd", "--version").exec();
-		// `lsb_release` might not be installed on alpine
-		// I just check for the `musl` libc, which is the libc used by `alpine`
-		// I could also check `/etc/os-release` too, but it's good enough for me.
-		const is_musl = ldd_info.match(/musl libc (.+)/);
-		if (is_musl) {
-			os = "alpine";
-			arch = linux_arch_to_nodejs_arch(is_musl[1]);
-		} else if (ldd_info.match(/GNU libc/)) {
-			// glibc's ldd doesn't show the archtecture, need probe further
-			// can't use `uname`, 32 bit guests can run on 64 bit host
-			const { stdout: ldd_info } = await cmd.enter(guest_name, "ldd", "/bin/sh").exec();
-			const glibc_ld_path = ldd_info.match(/\/lib(64)?\/ld-linux-(.+).so/)!;
-			arch = linux_arch_to_nodejs_arch(glibc_ld_path[2]);
-		} else {
-			throw ("distro's libc is neither musl nor glibc")
-		}
-		const output: string = await find_running_server_port(cmd, guest_name, os, arch);
-		const running_port = parseInt(output, 10);
-		if (!isNaN(running_port)) {
-			console.log(`running at ${running_port}`);
-			return new vscode.ResolvedAuthority("localhost", running_port)
-		}
-
-		if (!await is_server_installed(cmd, guest_name, os, arch)) {
-			let buffer: Uint8Array[] = await download_server_tarball(os, arch);
-			// I use `--no-workdir` and relative path for this.
-			// alternative is to spawn a shell and use $HOME
-			await extract_server_tarball(cmd, guest_name, buffer, os, arch);
-		}
-
-		const output2: string = await try_start_new_server(cmd, guest_name, os, arch);
-		const running_port2 = parseInt(output2, 10);
-		if (!isNaN(running_port2)) {
-			console.log(`new at ${running_port2}`);
-			return new vscode.ResolvedAuthority("localhost", running_port2)
-		}
-		throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
-	}
-}
-
-async function extract_server_tarball(cmd: dbx.MainCommandBuilder, guest_name: string, buffer: Uint8Array<ArrayBufferLike>[], os: string, arch: string) {
-	await cmd.enter(
-		guest_name,
-		"mkdir",
-		"-p",
-		`${server_extract_path(os, arch)}`
-	)
-		.no_workdir()
-		.exec();
-	const tar = cmd.enter(
-		guest_name,
-		"tar",
-		"-xz",
-		"-C",
-		`${server_extract_path(os, arch)}`
-	)
-		.no_tty()
-		.no_workdir()
-		.spawn({
-			stdio: ['pipe', 'inherit', 'inherit']
-		});
-	for (const chunk of buffer) {
-		await new Promise<void>((resolve, reject) => {
-			tar.stdin?.write(chunk, (err) => {
-				if (err) {
-					reject(err);
-				} else {
-					resolve();
-				}
-			});
-		});
-		console.log(".");
-	}
-	await new Promise<void>((resolve, reject) => tar.stdin?.end(resolve));
-}
-
-async function download_server_tarball(os: string, arch: string) {
-	const downloader = await fetch(server_download_url(os, arch));
-	// TODO: what if server didn't send `Content-Length` header?
-	const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
-	let buffer: Uint8Array[] = [];
-	await vscode.window.withProgress({
-		location: vscode.ProgressLocation.Notification,
-		title: "downloading vscodium-reh",
-	}, async (progress, candel) => {
-		for await (const chunk of downloader.body!) {
-			const bytes = chunk as Uint8Array;
-			progress.report({
-				increment: bytes.length * 100 / total_size
-			});
-			buffer.push(bytes);
-		}
-	});
-	console.log("download successful");
-	return buffer;
-}
-
-async function try_start_new_server(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string) {
-	const output = await cmd.enter(guest_name, "bash").pipe(
-		`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
-			LOG_FILE=$RUN_DIR/log
-			PID_FILE=$RUN_DIR/pid
-			PORT_FILE=$RUN_DIR/port
-			COUNT_FILE=$RUN_DIR/count
-
-			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
-
-			# open lock file
-			exec 200> $LOCK_FILE
-
-			# enter critical section
-			flock -x 200
-
-			if [[ -f $SERVER_FILE ]]; then
-				mkdir -p $RUN_DIR
-				nohup $SERVER_FILE --accept-server-license-terms --telemetry-level off --host localhost --port 0 --without-connection-token > $LOG_FILE &
-				echo $! > $PID_FILE
-
-				for i in {1..5}; do
-					LISTENING_ON="$(grep -oP '(?<=Extension host agent listening on )\\d+' $LOG_FILE)"
-					if [[ -n $LISTENING_ON ]]; then
-						break
-					fi
-					sleep 0.5
-				done
-
-				if [[ -n $LISTENING_ON ]]; then
-					echo "1" > $COUNT_FILE
-					echo $LISTENING_ON | tee $PORT_FILE
-				else
-					echo ERROR
-				fi
-			else
-				echo NOT INSTALLED
-			fi
-			`
-	);
-	return new TextDecoder('utf8').decode(output)
-}
-
-async function find_running_server_port(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string) {
-	const output = await cmd.enter(guest_name, "bash").pipe(
-		`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}
-			LOCK_FILE=$RUN_DIR/lock
-			COUNT_FILE=$RUN_DIR/count
-			PORT_FILE=$RUN_DIR/port
-
-			# open lock file
-			exec 200> $LOCK_FILE
-
-			# enter critical section
-			flock -x 200
-
-			if [[ -f $PORT_FILE ]]; then
-				count=$(cat $COUNT_FILE)
-				count=$(($count + 1))
-				echo $count > $COUNT_FILE
-				cat $PORT_FILE
-			else
-				echo NOT RUNNING;
-			fi
-			`
-	);
-	return new TextDecoder('utf8').decode(output)
-}
-
-function linux_arch_to_nodejs_arch(arch: string): string {
-	// TODO:
-	// I don't have arm system to test
-	switch (arch) {
-		case "x86-64":
-		case "amd64":
-			return "x64";
-		case "i386":
-		case "i686":
-			return "ia32";
-		default:
-			console.log(`TODO linux arch ${arch}`);
-			return arch;
-	}
-}
-
-async function is_server_installed(cmd: dbx.MainCommandBuilder, guest_name: string, os: string, arch: string): Promise<boolean> {
-	const output = await cmd.enter(guest_name, "bash").pipe(
-
-		`
-			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
-			if [[ -f $SERVER_FILE ]]; then
-				echo true
-			else
-				echo false
-			fi
-			`
-	);
-	return new TextDecoder('utf8').decode(output).trim() == "true"
 }
