@@ -82,6 +82,9 @@ export class DistroboxResolver {
 	public async download_server_tarball() {
 		const { os, arch } = this;
 		const downloader = await fetch(server_download_url(os, arch));
+		if (downloader.status != 200) {
+			throw `${downloader.status} ${server_download_url(os, arch)}`
+		}
 		// TODO: what if server didn't send `Content-Length` header?
 		const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
 		let buffer: Uint8Array[] = [];
@@ -227,6 +230,8 @@ export class DistroboxResolver {
 function linux_arch_to_nodejs_arch(arch: string): string {
 	// TODO:
 	// I don't have arm system to test
+	// arm stuff stolen from `open-remote-wsl`
+	// https://github.com/jeanp413/open-remote-wsl/blob/20824d50a3346f5fbd7875d3319a1445d8dc1c1e/src/serverSetup.ts#L192
 	switch (arch) {
 		case "x86_64":
 		case "x86-64":
@@ -235,6 +240,12 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 		case "i386":
 		case "i686":
 			return "ia32";
+		case "armv7l":
+		case "armv8l":
+			return "armhf";
+		case "arm64":
+		case "aarch64":
+			return "arm64";
 		default:
 			throw (`TODO linux arch ${arch}`)
 			return arch;
