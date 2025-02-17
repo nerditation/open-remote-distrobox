@@ -116,20 +116,15 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 		if (element) {
 			return []
 		} else {
-			const cmd = await dbx.MainCommandBuilder.auto();
-			const list = await cmd.list().run();
-			const current_distro = process.env.CONTAINER_ID ?? "";
-			return list.map(distro => distro["name"]).filter(name => name != current_distro)
+			return list_guest_distros()
 		}
 	}
 }
 
 async function connect_command(name?: string) {
 	if (!name) {
-		const current_distro = process.env.CONTAINER_ID ?? "";
-		const cmd = await dbx.MainCommandBuilder.auto();
 		const selected = await vscode.window.showQuickPick(
-			cmd.list().run().then(distros => distros.map(distro => distro["name"]).filter(name => name != current_distro)),
+			await list_guest_distros(),
 			{
 				canPickMany: false
 			}
@@ -185,4 +180,11 @@ function map_path(path: string): string {
 		return `/run/host${path}`
 	}
 
+}
+
+async function list_guest_distros(): Promise<string[]> {
+	const cmd = await dbx.MainCommandBuilder.auto();
+	const list = await cmd.list().run();
+	const current_distro = process.env.CONTAINER_ID ?? "";
+	return list.map(distro => distro["name"]).filter(name => name != current_distro)
 }
