@@ -225,6 +225,30 @@ export class DistroboxResolver {
 			`
 		);
 	}
+
+	/**
+	 * resolve
+	 */
+	public async resolve_server_port(): Promise<number | undefined> {
+		console.log(`resolving distrobox guest: ${this.name}`);
+
+		const running_port = parseInt((await this.find_running_server_port()), 10);
+		if (!isNaN(running_port)) {
+			console.log(`running server listening at ${running_port}`);
+			return running_port
+		}
+
+		if (!await this.is_server_installed()) {
+			let buffer: Uint8Array[] = await this.download_server_tarball();
+			await this.extract_server_tarball(buffer);
+		}
+
+		const new_port = parseInt((await this.try_start_new_server()), 10);
+		if (!isNaN(new_port)) {
+			console.log(`new server started at ${new_port}`);
+			return new_port;
+		}
+	}
 }
 
 function linux_arch_to_nodejs_arch(arch: string): string {
