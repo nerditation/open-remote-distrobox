@@ -155,19 +155,28 @@ async function reopen_command(name: string) {
 		}
 		name = selected;
 	}
+	let dest;
 	// common case: single root workspace
 	if (vscode.workspace.workspaceFolders?.length == 1) {
-		const dest = vscode.workspace.workspaceFolders[0].uri;
-		if (dest.scheme == 'file'
-			|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
-			const path = dest.fsPath;
-			const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${path}`);
-			console.log(`opening ${uri}`)
-			vscode.commands.executeCommand("vscode.openFolder", uri);
-		} else {
-			await vscode.window.showErrorMessage(`don't know how to map to path: ${dest}`);
+		dest = vscode.workspace.workspaceFolders[0].uri;
+	} else if (vscode.workspace.workspaceFile) {
+		if (vscode.workspace.workspaceFile.scheme == 'untitled') {
+			await vscode.window.showErrorMessage(`untitled multiroot workspace is not supported`);
 			return;
 		}
+		dest = vscode.workspace.workspaceFile;
+	} else {
+		await vscode.window.showErrorMessage("workspace is not a single folder, but there's no workspace file");
+		return;
+	}
+	if (dest.scheme == 'file'
+		|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
+		const path = dest.fsPath;
+		const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${path}`);
+		console.log(`opening ${uri}`)
+		vscode.commands.executeCommand("vscode.openFolder", uri);
+	} else {
+		await vscode.window.showErrorMessage(`don't know how to map to path: ${dest}`);
 	}
 }
 
