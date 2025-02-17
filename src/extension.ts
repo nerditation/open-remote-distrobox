@@ -41,6 +41,20 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (!isNaN(running_port)) {
 					console.log(`running server listening at ${running_port}`);
 					resolved = resolver;
+					context.subscriptions.push(
+						vscode.workspace.registerResourceLabelFormatter({
+							scheme: 'vscode-remote',
+							authority: 'distrobox+*',
+							formatting: {
+								label: "${path}",
+								separator: "/",
+								tildify: true,
+								normalizeDriveLetter: false,
+								workspaceSuffix: `distrobox: ${guest_name}`,
+								workspaceTooltip: `Connected to ${guest_name}`
+							}
+						})
+					)
 					return new vscode.ResolvedAuthority("localhost", running_port)
 				}
 
