@@ -32,6 +32,12 @@
 				"title": "Connect Current Window to Distrobox Guest",
 				"category": "Distrobox",
 				"icon": "$(vm-connect)"
+			},
+			{
+				"command": "open-remote-distrobox.reopen-workspace-in-guest",
+				"title": "Reopen Current Workspace in Guest Distro",
+				"category": "Distrobox",
+				"icon": "$(folder-opened)"
 			}
 		],
 		"views": {
@@ -61,6 +67,11 @@
 				{
 					"command": "open-remote-distrobox.connect",
 					"when": "viewItem == distrobox.guest",
+					"group": "inline"
+				},
+				{
+					"command": "open-remote-distrobox.reopen-workspace-in-guest",
+					"when": "viewItem == distrobox.guest && workspaceFolderCount > 0",
 					"group": "inline"
 				}
 			],

@@ -7,6 +7,7 @@
 
 
 import * as vscode from 'vscode';
+import * as os from 'os';
 
 import * as dbx from './distrobox';
 import { DistroboxResolver } from './resolver';
@@ -24,6 +25,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command)
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", reopen_command)
 	)
 
 	context.subscriptions.push(
@@ -138,4 +143,46 @@ async function connect_command(name?: string) {
 		reuseWindow: true,
 		remoteAuthority: "distrobox+" + encodeURIComponent(name)
 	})
+}
+
+async function reopen_command(name: string) {
+	if (!name) {
+		const current_distro = process.env.CONTAINER_ID ?? "";
+		const cmd = await dbx.MainCommandBuilder.auto();
+		const selected = await vscode.window.showQuickPick(
+			cmd.list().run().then(distros => distros.map(distro => distro["name"]).filter(name => name != current_distro)),
+			{
+				canPickMany: false
+			}
+		);
+		if (!selected) {
+			return;
+		}
+		name = selected;
+	}
+	// common case: single root workspace
+	if (vscode.workspace.workspaceFolders?.length == 1) {
+		const dest = vscode.workspace.workspaceFolders[0].uri;
+		if (dest.scheme == 'file'
+			|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
+			const path = dest.fsPath;
+			const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${path}`);
+			console.log(`opening ${uri}`)
+			vscode.commands.executeCommand("vscode.openFolder", uri);
+		} else {
+			await vscode.window.showErrorMessage(`don't know how to map to path: ${dest}`);
+			return;
+		}
+	}
+}
+
+function map_path(path: string): string {
+	console.log(`mapping ${path}`)
+	// if it's within $HOME or it's already mapped to `/run/host`
+	if (path.startsWith(os.homedir()) || path.startsWith('/run/host/')) {
+		return path;
+	} else {
+		return `/run/host${path}`
+	}
+
 }
