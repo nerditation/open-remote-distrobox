@@ -71,6 +71,34 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
 			},
+
+			// distrobox guests share the host network, so port forwarding is just nop
+			tunnelFactory(tunnelOptions, tunnelCreationOptions): Thenable<vscode.Tunnel> | undefined {
+				const host = tunnelOptions.remoteAddress.host;
+				// this should be unnecessary, I'm just paranoid, just in case.
+				if (host != "localhost"
+					&& host != "127.0.0.1"
+					&& host != "::1"
+					&& host != "*"
+					&& host != "0.0.0.0"
+					&& host != "::") {
+					console.log(`forwarding port for ${host}`)
+					return undefined;
+				}
+				return new Promise((resolve, reject) => {
+					const dispose_event = new vscode.EventEmitter<void>();
+					resolve({
+						remoteAddress: tunnelOptions.remoteAddress,
+						protocol: tunnelOptions.protocol,
+						localAddress: tunnelOptions.remoteAddress,
+						onDidDispose: dispose_event.event,
+						dispose() {
+							dispose_event.fire();
+							dispose_event.dispose;
+						}
+					})
+				})
+			},
 		})
 	)
 
