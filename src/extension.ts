@@ -185,6 +185,16 @@ function map_path(path: string): string {
 async function list_guest_distros(): Promise<string[]> {
 	const cmd = await dbx.MainCommandBuilder.auto();
 	const list = await cmd.list().run();
-	const current_distro = process.env.CONTAINER_ID ?? "";
+	let current_distro = '';
+	if (process.env.CONTAINER_ID) {
+		current_distro = process.env.CONTAINER_ID;
+	} else if (vscode.env.remoteAuthority?.startsWith('distrobox+')) {
+		current_distro = decodeURIComponent(strip_prefix(vscode.env.remoteAuthority, 'distrobox+'))
+	}
 	return list.map(distro => distro["name"]).filter(name => name != current_distro)
+}
+
+function strip_prefix(subject: string, prefix: string): string {
+	console.assert(subject.startsWith(prefix));
+	return subject.slice(prefix.length)
 }
