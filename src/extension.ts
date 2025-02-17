@@ -28,7 +28,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
-			async resolve(authority, context) {
+			async resolve(authority, _context) {
 				console.log(`resolving ${authority}`);
 
 				const [_remote, guest_name_encoded] = authority.split('+', 2);
@@ -53,12 +53,27 @@ export async function activate(context: vscode.ExtensionContext) {
 				if (!isNaN(new_port)) {
 					console.log(`new server started at ${new_port}`);
 					resolved = resolver;
+					context.subscriptions.push(
+						vscode.workspace.registerResourceLabelFormatter({
+							scheme: 'vscode-remote',
+							authority: 'distrobox+*',
+							formatting: {
+								label: "${path}",
+								separator: "/",
+								tildify: true,
+								normalizeDriveLetter: false,
+								workspaceSuffix: `distrobox: ${guest_name}`,
+								workspaceTooltip: `Connected to ${guest_name}`
+							}
+						})
+					)
 					return new vscode.ResolvedAuthority("localhost", new_port)
 				}
 				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
 			},
 		})
 	)
+
 }
 
 export async function deactivate() {
