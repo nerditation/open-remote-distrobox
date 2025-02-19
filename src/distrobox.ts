@@ -5,19 +5,44 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+/**
+ * @module distrobox
+ *
+ * this module implements (very minimal) command line builders. these builders
+ * are used to correctly build the command line to invoke `distrobox`, which can
+ * be used for APIs such as `child_process.exec()` or `child_process.spawn()`.
+ *
+ * there's a [distrobox-node] package in the npm registry, but it does not work
+ * inside containers such as the flatpak sandbox.
+ *
+ * [distrobox-node]: https://github.com/darksystemgit/distrobox-node
+ */
+
 import * as cp from "child_process";
 import which = require("which");
 
 export abstract class CommandLineBuilder {
 	/**
-	 * build
+	 * build the command line.
+	 *
+	 * this method should return an array of strings coresponding to `argv` as
+	 * in C's `main()` function, i.e. the first element `argv[0]` is the command
+	 * itself.
 	 */
 	public abstract build(): string[];
 
 	/**
-	 * exec
+	 * convenient wrapper for `child_process.execFile()` with the returned `argv`
+	 * of `this.build()`.
+	 *
+	 * unlike `child_process.exec()`, this function can be awaited.
+	 *
+	 * @returns a promise that resolves to a struct similar to the return value
+	 * of `child_process.exec()`, but this function will only throw if the child
+	 * process is killed. in case it exited with non-zero exit code, I still try
+	 * to capture the stdout and stderr, together with the exit code.
 	 */
-	public async exec(): Promise<{ exit_code: string | number, stdout: string, stderr: string }> {
+	public async exec(): Promise<{ exit_code?: string | number, stdout: string, stderr: string }> {
 		let args = this.build();
 		const cmd = args.shift()!;
 		return new Promise((resolve, reject) => {
@@ -26,17 +51,26 @@ export abstract class CommandLineBuilder {
 					if (error.killed) {
 						reject(error);
 					} else {
-						resolve({ exit_code: error.code ?? -1, stdout, stderr })
+						resolve({
+							exit_code: error.code ?? -1,
+							stdout: error.stdout ?? stdout,
+							stderr: error.stderr ?? stderr
+						})
 					}
 				} else {
-					resolve({ exit_code: 0, stdout, stderr })
+					resolve({ stdout, stderr })
 				}
 			})
 		})
 	}
 
 	/**
-	 * spawn_raw
+	 * convenient wrapper for `child_process.spawn()` with the returned `argv`
+	 * of `this.build()`.
+	 *
+	 * @param {cp.SpawnOptions} opts - the same options as `child_process.spawn()`
+	 * 	but `opts.env` will be merged with `process.env` if not `undefined`
+	 * @returns {cp.ChildProcess} the same as `child_process.spawn()`
 	 */
 	public spawn(opts?: cp.SpawnOptions) {
 		let args = this.build();
@@ -52,7 +86,23 @@ export abstract class CommandLineBuilder {
 	}
 
 	/**
-	 * pipe
+	 * spawn the child process with `stdin` and `stdout` redirected to pipes.
+	 *
+	 * the given input is written to `stdin`, and the `stdout` is read until
+	 * the pipe is closed. the data is read as raw bytes, the user can convert
+	 * it to text strings as needed.
+	 *
+	 * this function assumes the child process would eventually exit after
+	 * its `stdin` is closed, and its `stdout` is closed when it exits.
+	 *
+	 * if the child process runs forever without exiting even after `stdin` is
+	 * closed, the returned promise will never resolve.
+	 *
+	 * if the child process closes its `stdout` early, the promise might be
+	 * resolved before the child process actually exited.
+	 *
+	 * @param input - data written to the `stdin` of the child process
+	 * @returns {Promise<Buffer>} the raw bytes read from the `stdout`
 	 */
 	public pipe(input: any): Promise<Buffer> {
 		const child = this.spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
@@ -67,14 +117,53 @@ export abstract class CommandLineBuilder {
 	}
 }
 
+/**
+ * the builder for the main `distrobox` command
+ *
+ * this builder is used by the builders for individual subcommands
+ *
+```console
+distrobox version: 1.8.0
+
+Choose one of the available commands:
+        assemble
+        create
+        enter
+        list | ls
+        rm
+        stop
+        upgrade
+        ephemeral
+        generate-entry
+        version
+        help
+
+```
+ */
 export class MainCommandBuilder extends CommandLineBuilder {
 
+	/**
+	 * construct the builder with the given command line.
+	 *
+	 * @example
+	 * ```ts
+	 * const local = new distrobox.MainCommandBuilder(['/user/bin/distrobox']);
+	 * const flatpak_host = new distrobox.MainCommandBuilder(['/usr/bin/flatpak-spawn', '--host', 'distrobox']);
+	 * const distrobox_host = new distrobox.MainCommandBuilder(['/usr/bin/distrobox-host-exec', 'distrobox']);
+	 * ```
+	 * @param argv - the command line to invoke `distrobox`
+	 */
 	constructor(public argv: string[]) {
 		super()
 	}
 
 	/**
-	 * auto
+	 * try to automatically find out how to invoke `distrobox` command
+	 *
+	 * currently these heuristics are used, in this order:
+	 * - if there's a `distrobox` command in `$PATH`, then use it
+	 * - if inside a flatpak sandbox, try `flatpak-spawn --host distrbox`
+	 * - if inside a distrobox guest, use `distrobox-host-exec distrobox`
 	 */
 	public static async auto(): Promise<MainCommandBuilder> {
 		try {
@@ -115,21 +204,21 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	}
 
 	/**
-	 * build
+	 * the main command without any subcommand just prints the usage
 	 */
 	public build(): string[] {
 		return this.argv
 	}
 
 	/**
-	 * list
+	 * shorthand to construct a builder for the subcommand `distrobox-list`
 	 */
 	public list(): ListCommandBuilder {
 		return new ListCommandBuilder(this);
 	}
 
 	/**
-	 * enter
+	 * shorthand to construct a builder for the subcommand `distrobox-enter`
 	 */
 	public enter(name?: string, ...args: string[]): EnterCommandBuilder {
 		return new EnterCommandBuilder(this, name, ...args);
@@ -137,6 +226,9 @@ export class MainCommandBuilder extends CommandLineBuilder {
 }
 
 /**
+ * the builder for the `distrobox list` subcommand
+ *
+```console
 distrobox version: 1.8.0
 
 Usage:
@@ -152,6 +244,7 @@ Options:
 										  specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
 		  --verbose/-v:           show more verbosity
 		  --version/-V:           show version
+```
  */
 export class ListCommandBuilder extends CommandLineBuilder {
 	_command: MainCommandBuilder;
@@ -230,7 +323,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	}
 
 	/**
-	 * exec
+	 * `run()` wraps `this.exec` and parse the output into structured data
 	 */
 	public async run(): Promise<Record<string, string>[]> {
 		const { stdout } = await this.exec();
@@ -247,6 +340,9 @@ export class ListCommandBuilder extends CommandLineBuilder {
 }
 
 /**
+ * the builder for the `distrobox enter` subcommand
+ *
+```console
 distrobox version: 1.8.0.1
 
 Usage:
@@ -272,7 +368,7 @@ Options:
 		  --dry-run/-d:           only print the container manager command generated
 		  --verbose/-v:           show more verbosity
 		  --version/-V:           show version
-
+```
  */
 export class EnterCommandBuilder extends CommandLineBuilder {
 	_command: MainCommandBuilder;
