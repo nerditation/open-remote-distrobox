@@ -139,6 +139,13 @@ function connect_command(window: 'current' | 'new') {
 			}
 			name = selected;
 		}
+		if (window == 'current' && vscode.env.remoteAuthority?.startsWith('distrobox+')) {
+			const current = decodeURIComponent(strip_prefix(vscode.env.remoteAuthority, 'distrobox+'))
+			if (name == current) {
+				vscode.window.showInformationMessage(`current window already connected to ${name}`);
+				return;
+			}
+		}
 		vscode.commands.executeCommand("vscode.newWindow", {
 			reuseWindow: window == 'current',
 			remoteAuthority: "distrobox+" + encodeURIComponent(name)
@@ -203,8 +210,6 @@ async function list_guest_distros(): Promise<string[]> {
 	let current_distro = '';
 	if (process.env.CONTAINER_ID) {
 		current_distro = process.env.CONTAINER_ID;
-	} else if (vscode.env.remoteAuthority?.startsWith('distrobox+')) {
-		current_distro = decodeURIComponent(strip_prefix(vscode.env.remoteAuthority, 'distrobox+'))
 	}
 	return list.map(distro => distro["name"]).filter(name => name != current_distro)
 }
