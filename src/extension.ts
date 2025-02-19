@@ -14,7 +14,7 @@ import { DistroboxResolver } from './resolver';
 
 // `context.subscriptions` does NOT await async operations
 // have to use the `deactivate()` hook
-let resolved: DistroboxResolver | undefined;
+let resolved: DistroboxResolver[] = [];
 
 export async function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
@@ -48,7 +48,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				const port = await resolver.resolve_server_port();
 				if (port) {
-					resolved = resolver;
+					resolved.push(resolver);
 					context.subscriptions.push(
 						vscode.workspace.registerResourceLabelFormatter({
 							scheme: 'vscode-remote',
@@ -102,8 +102,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export async function deactivate() {
 	console.log("deactivation")
-	if (resolved) {
-		await resolved.shutdown_server();
+	for (const resolver of resolved) {
+		await resolver.shutdown_server();
 	}
 }
 
