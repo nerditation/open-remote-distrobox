@@ -34,6 +34,12 @@
 				"icon": "$(vm-connect)"
 			},
 			{
+				"command": "open-remote-distrobox.connect-new-window",
+				"title": "Open a New Window and Connect to Distrobox Guest",
+				"category": "Distrobox",
+				"icon": "$(empty-window)"
+			},
+			{
 				"command": "open-remote-distrobox.reopen-workspace-in-guest",
 				"title": "Reopen Current Workspace in Guest Distro",
 				"category": "Distrobox",
@@ -70,6 +76,11 @@
 					"group": "inline"
 				},
 				{
+					"command": "open-remote-distrobox.connect-new-window",
+					"when": "viewItem == distrobox.guest",
+					"group": "inline"
+				},
+				{
 					"command": "open-remote-distrobox.reopen-workspace-in-guest",
 					"when": "viewItem == distrobox.guest && workspaceFolderCount > 0",
 					"group": "inline"
@@ -78,6 +89,11 @@
 			"statusBar/remoteIndicator": [
 				{
 					"command": "open-remote-distrobox.connect",
+					"when": "isLinux",
+					"group": "remote_20_distrobox_statusbar"
+				},
+				{
+					"command": "open-remote-distrobox.connect-new-window",
 					"when": "isLinux",
 					"group": "remote_20_distrobox_statusbar"
 				},

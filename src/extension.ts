@@ -24,7 +24,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command)
+		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command("current"))
+	)
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", connect_command("new"))
 	)
 
 	context.subscriptions.push(
@@ -121,23 +125,25 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 	}
 }
 
-async function connect_command(name?: string) {
-	if (!name) {
-		const selected = await vscode.window.showQuickPick(
-			await list_guest_distros(),
-			{
-				canPickMany: false
+function connect_command(window: 'current' | 'new') {
+	return async (name?: string) => {
+		if (!name) {
+			const selected = await vscode.window.showQuickPick(
+				await list_guest_distros(),
+				{
+					canPickMany: false
+				}
+			);
+			if (!selected) {
+				return;
 			}
-		);
-		if (!selected) {
-			return;
+			name = selected;
 		}
-		name = selected;
+		vscode.commands.executeCommand("vscode.newWindow", {
+			reuseWindow: window == 'current',
+			remoteAuthority: "distrobox+" + encodeURIComponent(name)
+		})
 	}
-	vscode.commands.executeCommand("vscode.newWindow", {
-		reuseWindow: true,
-		remoteAuthority: "distrobox+" + encodeURIComponent(name)
-	})
 }
 
 async function reopen_command(name: string) {
