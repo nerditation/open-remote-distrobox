@@ -5,10 +5,29 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+/**
+ * @module resolver
+ *
+ * implement the full process to download, install, launch the remote server,
+ * and to extract the port number the server is listening at.
+ *
+ * this module uses the `distrobox` module to run commands in the guest distro.
+ * most of the commands are executed through `bash` scripts that is piped to
+ * the `stdin` of the bash process.
+ *
+ * distrobox will always install bash for the guest, even for distros with
+ * different default shell, such as `alpine` linux
+ */
+
 import * as vscode from 'vscode'
 import * as dbx from './distrobox'
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 
+/**
+ * this is the class that "does the actual work", a.k.a. business logic
+ *
+ * the name is not very descriptive, but I don't know what's better
+ */
 export class DistroboxResolver {
 	cmd: dbx.MainCommandBuilder;
 	name: string;
@@ -20,6 +39,18 @@ export class DistroboxResolver {
 		this.name = name;
 	}
 
+	/**
+	 * this is the actual "constructor" users should use
+	 *
+	 * this function will try to "guess" the os and architecture for the guest.
+	 * the official builds of `vscodium-reh` has two variants for linux, `alpine`
+	 * and `linux`. I'm lazy and I just check the libc, if its `musl`, I use
+	 * `alpine`, and if its `glibc`, I use `linux`. this is good enough for me.
+	 *
+	 * @param cmd the command line builder for how to invoke the `distrobox` command
+	 * @param name the name of the guest container
+	 * @returns a promise that resolves to `Self`
+	 */
 	public static async for_guest_distro(cmd: dbx.MainCommandBuilder, name: string): Promise<DistroboxResolver> {
 		const resolver = new DistroboxResolver(cmd, name);
 		const { stdout: ldd_info, stderr: ldd_info_err } = await cmd.enter(name, "ldd", "--version").exec();
@@ -42,6 +73,14 @@ export class DistroboxResolver {
 		return resolver
 	}
 
+	/**
+	 * pipe the tarball to a `tar` command running in the guest.
+	 *
+	 * since the data is downloaded from the internet, it's convenient to use
+	 * an array of chunks as arguments.
+	 *
+	 * @param buffer raw bytes (in chunks) of the `gzip` compressed tarball
+	 */
 	public async extract_server_tarball(buffer: Uint8Array[]) {
 		const { cmd, name, os, arch } = this;
 		const path = server_extract_path(os, arch);
@@ -79,7 +118,12 @@ export class DistroboxResolver {
 		await new Promise<void>((resolve, reject) => tar.stdin?.end(resolve));
 	}
 
-	public async download_server_tarball() {
+	/**
+	 * download the server from the internet using the `fetch` API
+	 *
+	 * @returns the file contents in chunks of unspecified sizes
+	 */
+	public async download_server_tarball(): Promise<Uint8Array[]> {
 		const { os, arch } = this;
 		const downloader = await fetch(server_download_url(os, arch));
 		if (downloader.status != 200) {
@@ -104,7 +148,15 @@ export class DistroboxResolver {
 		return buffer;
 	}
 
-	public async try_start_new_server() {
+	/**
+	 * try to start a new server process and find the port number
+	 *
+	 * @returns the `stdout` of the launch script, can be one of:
+	 * - a tcp port number on success
+	 * - "NOT INSTALLED", if the server binary is not installed
+	 * - "ERROR", if failed to launch the server or find the port number
+	 */
+	public async try_start_new_server(): Promise<string> {
 		const { cmd, name, os, arch } = this;
 		const output = await cmd.enter(name, "bash").pipe(
 			`
@@ -141,6 +193,7 @@ export class DistroboxResolver {
 					echo "1" > $COUNT_FILE
 					echo $LISTENING_ON | tee $PORT_FILE
 				else
+					kill $(cat $PID_FILE)
 					echo ERROR
 				fi
 			else
@@ -151,7 +204,14 @@ export class DistroboxResolver {
 		return new TextDecoder('utf8').decode(output)
 	}
 
-	public async find_running_server_port() {
+	/**
+	 * try to detect an running server and find the port number
+	 *
+	 * @returns the `stdout` of the shell script, can be one of:
+	 * - a tcp port number, on success
+	 * - "NOT RUNNING"
+	 */
+	public async find_running_server_port(): Promise<string> {
 		const { cmd, name, os, arch } = this;
 		const output = await cmd.enter(name, "bash").pipe(
 			`
@@ -179,6 +239,9 @@ export class DistroboxResolver {
 		return new TextDecoder('utf8').decode(output)
 	}
 
+	/**
+	 * check if the server is already installed
+	 */
 	public async is_server_installed(): Promise<boolean> {
 		const { cmd, name, os, arch } = this;
 		const output = await cmd.enter(name, "bash").pipe(
@@ -196,7 +259,7 @@ export class DistroboxResolver {
 	}
 
 	/**
-	 * stop
+	 * shutdown the server, will be called in `extension.deactivate()`
 	 */
 	public async shutdown_server() {
 		const { cmd, name, os, arch } = this;
@@ -227,7 +290,9 @@ export class DistroboxResolver {
 	}
 
 	/**
-	 * resolve
+	 * the full process to resolve the port number for the remote server
+	 *
+	 * this is called by `vscode.RemoteAuthorityResolver.resolve()`
 	 */
 	public async resolve_server_port(): Promise<number | undefined> {
 		console.log(`resolving distrobox guest: ${this.name}`);
