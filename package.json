@@ -107,7 +107,7 @@
 	},
 	"packageManager": "pnpm@9.6.0",
 	"scripts": {
-		"vscode:prepublish": "pnpm run prepackage",
+		"vscode:prepublish": "pnpm clean && pnpm run compile:tsup --minify",
 		"compile": "tsc -p ./",
 		"lint": "eslint \"src/**/*.ts\"",
 		"watch": "tsc -watch -p ./",
@@ -116,7 +116,6 @@
 		"postinstall": "pnpm run download-api",
 		"compile:tsup": "tsup",
 		"watch:tsup": "tsup --watch --dts",
-		"prepackage": "pnpm clean && pnpm compile:tsup --minify",
 		"package": "vsce pack --no-dependencies",
 		"clean": "rm -rf out"
 	},
