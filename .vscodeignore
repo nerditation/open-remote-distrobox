@@ -1,0 +1,11 @@
+.gitignore
+.github/**
+.vscode/**
+node_modules/**
+src/**
+vscode.d.ts
+vscode.proposed.*.d.ts
+.eslintignore
+.eslintrc.json
+tsconfig.json
+pnpm-lock.yaml

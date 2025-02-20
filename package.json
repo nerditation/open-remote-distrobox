@@ -107,13 +107,18 @@
 	},
 	"packageManager": "pnpm@9.6.0",
 	"scripts": {
-		"vscode:prepublish": "pnpm run compile",
+		"vscode:prepublish": "pnpm run prepackage",
 		"compile": "tsc -p ./",
 		"lint": "eslint \"src/**/*.ts\"",
 		"watch": "tsc -watch -p ./",
 		"download-api": "dts dev",
 		"postdownload-api": "dts main",
-		"postinstall": "pnpm run download-api"
+		"postinstall": "pnpm run download-api",
+		"compile:tsup": "tsup",
+		"watch:tsup": "tsup --watch --dts",
+		"prepackage": "pnpm clean && pnpm compile:tsup --minify",
+		"package": "vsce pack --no-dependencies",
+		"clean": "rm -rf out"
 	},
 	"devDependencies": {
 		"@types/node": "^20.17.19",
@@ -121,8 +126,21 @@
 		"@typescript-eslint/eslint-plugin": "^7.18.0",
 		"@typescript-eslint/parser": "^7.18.0",
 		"@vscode/dts": "^0.4.1",
+		"@vscode/vsce": "^3.2.2",
 		"eslint": "^8.57.1",
+		"tsup": "^8.3.6",
 		"typescript": "^5.7.3",
 		"which": "^5.0.0"
+	},
+	"tsup": {
+		"format": "cjs",
+		"target": "es2020",
+		"outDir": "out",
+		"entry": [
+			"src/extension.ts"
+		],
+		"external": [
+			"vscode"
+		]
 	}
 }
