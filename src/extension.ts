@@ -19,8 +19,12 @@ const resolved: DistroboxResolver[] = [];
 export async function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
 
+	const refresh_requested = new vscode.EventEmitter<void>;
+
+	context.subscriptions.push(refresh_requested);
+
 	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider("distrobox.guests", new DistroboxLister)
+		vscode.window.registerTreeDataProvider("distrobox.guests", new DistroboxLister(refresh_requested.event))
 	);
 
 	context.subscriptions.push(
@@ -33,6 +37,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", reopen_command)
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.refresh", () => refresh_requested.fire())
 	);
 
 	context.subscriptions.push(
@@ -108,6 +116,9 @@ export async function deactivate() {
 }
 
 class DistroboxLister implements vscode.TreeDataProvider<string> {
+
+	constructor(public onDidChangeTreeData: vscode.Event<void>) { }
+
 	getTreeItem(element: string): vscode.TreeItem | Thenable<vscode.TreeItem> {
 		const item = new vscode.TreeItem(element);
 		item.contextValue = "distrobox.guest";

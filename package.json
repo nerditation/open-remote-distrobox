@@ -45,6 +45,12 @@
 				"title": "Reopen Current Workspace in Guest Distro",
 				"category": "Distrobox",
 				"icon": "$(folder-opened)"
+			},
+			{
+				"command": "open-remote-distrobox.refresh",
+				"title": "Refresh the Distrobox Guest List in Remote Explorer",
+				"category": "Distrobox",
+				"icon": "$(refresh)"
 			}
 		],
 		"views": {
@@ -70,6 +76,13 @@
 			}
 		],
 		"menus": {
+			"view/title": [
+				{
+					"command": "open-remote-distrobox.refresh",
+					"when": "view == distrobox.guests",
+					"group": "navigation"
+				}
+			],
 			"view/item/context": [
 				{
 					"command": "open-remote-distrobox.connect",
