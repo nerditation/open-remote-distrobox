@@ -43,7 +43,7 @@ export abstract class CommandLineBuilder {
 	 * to capture the stdout and stderr, together with the exit code.
 	 */
 	public async exec(): Promise<{ exit_code?: string | number, stdout: string, stderr: string }> {
-		let args = this.build();
+		const args = this.build();
 		const cmd = args.shift()!;
 		return new Promise((resolve, reject) => {
 			cp.execFile(cmd, args, (error, stdout, stderr) => {
@@ -55,13 +55,13 @@ export abstract class CommandLineBuilder {
 							exit_code: error.code ?? -1,
 							stdout: error.stdout ?? stdout,
 							stderr: error.stderr ?? stderr
-						})
+						});
 					}
 				} else {
-					resolve({ stdout, stderr })
+					resolve({ stdout, stderr });
 				}
-			})
-		})
+			});
+		});
 	}
 
 	/**
@@ -73,15 +73,15 @@ export abstract class CommandLineBuilder {
 	 * @returns {cp.ChildProcess} the same as `child_process.spawn()`
 	 */
 	public spawn(opts?: cp.SpawnOptions) {
-		let args = this.build();
+		const args = this.build();
 		const cmd = args.shift()!;
 		if (opts?.env) {
 			opts.env = Object.assign({}, process.env, opts.env);
 		}
 		if (opts) {
-			return cp.spawn(cmd, args, opts)
+			return cp.spawn(cmd, args, opts);
 		} else {
-			return cp.spawn(cmd, args)
+			return cp.spawn(cmd, args);
 		}
 	}
 
@@ -110,7 +110,7 @@ export abstract class CommandLineBuilder {
 		child.stdin?.end();
 		return new Promise((resolve, reject) => {
 			child.stdout?.on('error', reject);
-			let output_chunks: Uint8Array[] = []
+			const output_chunks: Uint8Array[] = [];
 			child.stdout?.on('data', (chunk) => output_chunks.push(chunk as Uint8Array));
 			child.stdout?.on('end', () => resolve(Buffer.concat(output_chunks)));
 		});
@@ -154,7 +154,7 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	 * @param argv - the command line to invoke `distrobox`
 	 */
 	constructor(public argv: string[]) {
-		super()
+		super();
 	}
 
 	/**
@@ -168,46 +168,46 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	public static async auto(): Promise<MainCommandBuilder> {
 		try {
 			const distrobox_path = await which('distrobox');
-			console.log(`found distrobox: ${distrobox_path}`)
-			return new MainCommandBuilder([distrobox_path])
+			console.log(`found distrobox: ${distrobox_path}`);
+			return new MainCommandBuilder([distrobox_path]);
 		} catch {
-			console.log("local distrobox not found")
+			console.log("local distrobox not found");
 		}
 		try {
 			const flatpak_spawn_path = await which('flatpak-spawn');
-			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`)
+			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`);
 			const banner = await new Promise<string>((resolve, reject) => {
 				cp.execFile(
 					flatpak_spawn_path,
 					['--host', 'distrobox', '--version'],
 					(error, stdout) => {
 						if (error) {
-							reject(error)
+							reject(error);
 						} else {
-							resolve(stdout)
+							resolve(stdout);
 						}
-					})
+					});
 			});
-			console.log(`found distrobox on flatpak host: ${banner}`)
-			return new MainCommandBuilder([flatpak_spawn_path, '--host', 'distrobox'])
+			console.log(`found distrobox on flatpak host: ${banner}`);
+			return new MainCommandBuilder([flatpak_spawn_path, '--host', 'distrobox']);
 		} catch {
-			console.log("didn't find distrobox on flatpak host")
+			console.log("didn't find distrobox on flatpak host");
 		}
 		try {
 			const distrobox_host_exec_path = await which('distrobox-host-exec');
-			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`)
-			return new MainCommandBuilder([distrobox_host_exec_path, 'distrobox'])
+			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`);
+			return new MainCommandBuilder([distrobox_host_exec_path, 'distrobox']);
 		} catch {
-			console.log("not inside distrobox guest")
+			console.log("not inside distrobox guest");
 		}
-		throw ("didn't find distrobox command")
+		throw ("didn't find distrobox command");
 	}
 
 	/**
 	 * the main command without any subcommand just prints the usage
 	 */
 	public build(): string[] {
-		return this.argv
+		return this.argv;
 	}
 
 	/**
@@ -303,21 +303,21 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 * build
 	 */
 	public build(): string[] {
-		let argv = [...this._command.argv, "list"];
+		const argv = [...this._command.argv, "list"];
 		if (this._help) {
-			argv.push("--help")
+			argv.push("--help");
 		}
 		if (this._no_color) {
-			argv.push("--no-color")
+			argv.push("--no-color");
 		}
 		if (this._root) {
-			argv.push("--root")
+			argv.push("--root");
 		}
 		if (this._verbose) {
-			argv.push("--verbose")
+			argv.push("--verbose");
 		}
 		if (this._version) {
-			argv.push("--version")
+			argv.push("--version");
 		}
 		return argv;
 	}
@@ -327,7 +327,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 */
 	public async run(): Promise<Record<string, string>[]> {
 		const { stdout } = await this.exec();
-		let lines = stdout.split("\n").filter(line => line != "");
+		const lines = stdout.split("\n").filter(line => line != "");
 		const header = lines.shift()!;
 		const fields = header.split("|").map(s => s.trim().toLowerCase());
 		return lines.map((line) => {
@@ -335,7 +335,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 				return ts.map((t, i) => [t, us[i]]);
 			}
 			return Object.fromEntries(zip(fields, line.split("|").map(s => s.trim())));
-		})
+		});
 	}
 }
 
@@ -484,7 +484,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * build
 	 */
 	public build() {
-		let argv = [...this._command.argv, "enter"];
+		const argv = [...this._command.argv, "enter"];
 		if (this._name) {
 			argv.push("--name");
 			argv.push(this._name);
@@ -503,7 +503,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 			argv.push(this._additional_flags);
 		}
 		if (this._help) {
-			argv.push("--help")
+			argv.push("--help");
 		}
 		if (this._root) {
 			argv.push("--root");

@@ -19,9 +19,10 @@
  * different default shell, such as `alpine` linux
  */
 
-import * as vscode from 'vscode'
-import * as dbx from './distrobox'
+import * as vscode from 'vscode';
+import * as dbx from './distrobox';
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
+import { arch } from 'os';
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -32,7 +33,7 @@ export class DistroboxResolver {
 	cmd: dbx.MainCommandBuilder;
 	name: string;
 	os: string = "linux";
-	arch: string = require("os").arch();
+	arch: string = arch();
 
 	private constructor(cmd: dbx.MainCommandBuilder, name: string) {
 		this.cmd = cmd;
@@ -68,9 +69,9 @@ export class DistroboxResolver {
 			const glibc_ld_path = ldd_info.match(/\/lib(64)?\/ld-linux-(.+).so/)!;
 			resolver.arch = linux_arch_to_nodejs_arch(glibc_ld_path[2]);
 		} else {
-			throw ("distro's libc is neither musl nor glibc")
+			throw ("distro's libc is neither musl nor glibc");
 		}
-		return resolver
+		return resolver;
 	}
 
 	/**
@@ -127,11 +128,11 @@ export class DistroboxResolver {
 		const { os, arch } = this;
 		const downloader = await fetch(server_download_url(os, arch));
 		if (downloader.status != 200) {
-			throw `${downloader.status} ${server_download_url(os, arch)}`
+			throw `${downloader.status} ${server_download_url(os, arch)}`;
 		}
 		// TODO: what if server didn't send `Content-Length` header?
 		const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
-		let buffer: Uint8Array[] = [];
+		const buffer: Uint8Array[] = [];
 		await vscode.window.withProgress({
 			location: vscode.ProgressLocation.Notification,
 			title: "downloading vscodium-reh",
@@ -201,7 +202,7 @@ export class DistroboxResolver {
 			fi
 			`
 		);
-		return new TextDecoder('utf8').decode(output)
+		return new TextDecoder('utf8').decode(output);
 	}
 
 	/**
@@ -236,7 +237,7 @@ export class DistroboxResolver {
 			fi
 			`
 		);
-		return new TextDecoder('utf8').decode(output)
+		return new TextDecoder('utf8').decode(output);
 	}
 
 	/**
@@ -255,7 +256,7 @@ export class DistroboxResolver {
 			fi
 			`
 		);
-		return new TextDecoder('utf8').decode(output).trim() == "true"
+		return new TextDecoder('utf8').decode(output).trim() == "true";
 	}
 
 	/**
@@ -300,11 +301,11 @@ export class DistroboxResolver {
 		const running_port = parseInt((await this.find_running_server_port()), 10);
 		if (!isNaN(running_port)) {
 			console.log(`running server listening at ${running_port}`);
-			return running_port
+			return running_port;
 		}
 
 		if (!await this.is_server_installed()) {
-			let buffer: Uint8Array[] = await this.download_server_tarball();
+			const buffer: Uint8Array[] = await this.download_server_tarball();
 			await this.extract_server_tarball(buffer);
 		}
 
@@ -336,7 +337,7 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 		case "aarch64":
 			return "arm64";
 		default:
-			throw (`TODO linux arch ${arch}`)
+			throw (`TODO linux arch ${arch}`);
 			return arch;
 	}
 }

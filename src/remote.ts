@@ -67,7 +67,7 @@ export function server_download_url(os: string, arch: string): string {
 
 	};
 	const template = _VSCODE_PRODUCT_JSON.serverDownloadUrlTemplate ?? DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE;
-	return fill_template(template, info)
+	return fill_template(template, info);
 }
 
 // NOTE:

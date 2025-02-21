@@ -14,7 +14,7 @@ import { DistroboxResolver } from './resolver';
 
 // `context.subscriptions` does NOT await async operations
 // have to use the `deactivate()` hook
-let resolved: DistroboxResolver[] = [];
+const resolved: DistroboxResolver[] = [];
 
 export async function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
@@ -25,15 +25,15 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command("current"))
-	)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", connect_command("new"))
-	)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", reopen_command)
-	)
+	);
 
 	context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
@@ -62,10 +62,10 @@ export async function activate(context: vscode.ExtensionContext) {
 								workspaceTooltip: `Connected to ${guest_name}`
 							}
 						})
-					)
-					return new vscode.ResolvedAuthority("localhost", port)
+					);
+					return new vscode.ResolvedAuthority("localhost", port);
 				}
-				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro")
+				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro");
 			},
 
 			// distrobox guests share the host network, so port forwarding is just nop
@@ -78,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					&& host != "*"
 					&& host != "0.0.0.0"
 					&& host != "::") {
-					console.log(`forwarding port for ${host}`)
+					console.log(`forwarding port for ${host}`);
 					return undefined;
 				}
 				return new Promise((resolve, reject) => {
@@ -92,16 +92,16 @@ export async function activate(context: vscode.ExtensionContext) {
 							dispose_event.fire();
 							dispose_event.dispose;
 						}
-					})
-				})
+					});
+				});
 			},
 		})
-	)
+	);
 
 }
 
 export async function deactivate() {
-	console.log("deactivation")
+	console.log("deactivation");
 	for (const resolver of resolved) {
 		await resolver.shutdown_server();
 	}
@@ -118,9 +118,9 @@ class DistroboxLister implements vscode.TreeDataProvider<string> {
 	}
 	async getChildren(element?: string | undefined): Promise<string[]> {
 		if (element) {
-			return []
+			return [];
 		} else {
-			return list_guest_distros()
+			return list_guest_distros();
 		}
 	}
 }
@@ -140,7 +140,7 @@ function connect_command(window: 'current' | 'new') {
 			name = selected;
 		}
 		if (window == 'current' && vscode.env.remoteAuthority?.startsWith('distrobox+')) {
-			const current = decodeURIComponent(strip_prefix(vscode.env.remoteAuthority, 'distrobox+'))
+			const current = decodeURIComponent(strip_prefix(vscode.env.remoteAuthority, 'distrobox+'));
 			if (name == current) {
 				vscode.window.showInformationMessage(`current window already connected to ${name}`);
 				return;
@@ -149,8 +149,8 @@ function connect_command(window: 'current' | 'new') {
 		vscode.commands.executeCommand("vscode.newWindow", {
 			reuseWindow: window == 'current',
 			remoteAuthority: "distrobox+" + encodeURIComponent(name)
-		})
-	}
+		});
+	};
 }
 
 async function reopen_command(name: string) {
@@ -186,7 +186,7 @@ async function reopen_command(name: string) {
 		|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
 		const path = dest.fsPath;
 		const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${path}`);
-		console.log(`opening ${uri}`)
+		console.log(`opening ${uri}`);
 		vscode.commands.executeCommand("vscode.openFolder", uri);
 	} else {
 		await vscode.window.showErrorMessage(`don't know how to map to path: ${dest}`);
@@ -194,12 +194,12 @@ async function reopen_command(name: string) {
 }
 
 function map_path(path: string): string {
-	console.log(`mapping ${path}`)
+	console.log(`mapping ${path}`);
 	// if it's within $HOME or it's already mapped to `/run/host`
 	if (path.startsWith(os.homedir()) || path.startsWith('/run/host/')) {
 		return path;
 	} else {
-		return `/run/host${path}`
+		return `/run/host${path}`;
 	}
 
 }
@@ -211,10 +211,10 @@ async function list_guest_distros(): Promise<string[]> {
 	if (process.env.CONTAINER_ID) {
 		current_distro = process.env.CONTAINER_ID;
 	}
-	return list.map(distro => distro["name"]).filter(name => name != current_distro)
+	return list.map(distro => distro["name"]).filter(name => name != current_distro);
 }
 
 function strip_prefix(subject: string, prefix: string): string {
 	console.assert(subject.startsWith(prefix));
-	return subject.slice(prefix.length)
+	return subject.slice(prefix.length);
 }
