@@ -81,7 +81,7 @@ ${code_command} --folder-uri="vscode-remote://distrobox+${container_name}/$(real
 
 this extension is released under Mozilla Public License Version 2.0.
 
-SPDX-License-Identifier: MPL-2.0
+SPDX-License-Identifier: MPL-2.0  
 SPDX-PackageCopyrightText: Copyright nerditation <nerditation@users.noreply.github.com>
 
 
