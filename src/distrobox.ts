@@ -102,8 +102,7 @@ export abstract class CommandLineBuilder {
 	 */
 	public pipe(input: any): Promise<Buffer> {
 		const child = this.spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
-		child.stdin?.write(input);
-		child.stdin?.end();
+		child.stdin?.end(input);
 		return new Promise((resolve, reject) => {
 			child.stdout?.on('error', reject);
 			const output_chunks: Uint8Array[] = [];
@@ -122,17 +121,17 @@ export abstract class CommandLineBuilder {
 distrobox version: 1.8.0
 
 Choose one of the available commands:
-        assemble
-        create
-        enter
-        list | ls
-        rm
-        stop
-        upgrade
-        ephemeral
-        generate-entry
-        version
-        help
+		  assemble
+		  create
+		  enter
+		  list | ls
+		  rm
+		  stop
+		  upgrade
+		  ephemeral
+		  generate-entry
+		  version
+		  help
 
 ```
  */

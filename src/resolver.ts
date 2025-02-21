@@ -135,7 +135,7 @@ export class DistroboxResolver {
 		const buffer: Uint8Array[] = [];
 		await vscode.window.withProgress({
 			location: vscode.ProgressLocation.Notification,
-			title: "downloading vscodium-reh",
+			title: "downloading vscodium remote server",
 		}, async (progress, candel) => {
 			for await (const chunk of downloader.body!) {
 				const bytes = chunk as Uint8Array;
@@ -169,6 +169,8 @@ export class DistroboxResolver {
 
 			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
 
+			mkdir -p $RUN_DIR
+
 			# open lock file
 			exec 200> $LOCK_FILE
 
@@ -176,13 +178,18 @@ export class DistroboxResolver {
 			flock -x 200
 
 			if [[ -f $SERVER_FILE ]]; then
-				mkdir -p $RUN_DIR
-				nohup $SERVER_FILE --accept-server-license-terms --telemetry-level off --host localhost --port 0 --without-connection-token > $LOG_FILE &
+				nohup \
+					$SERVER_FILE \
+					--accept-server-license-terms \
+					--telemetry-level off \
+					--host localhost \
+					--port 0 \
+					--without-connection-token \
+					> $LOG_FILE \
+					 &
 				echo $! > $PID_FILE
 
 				for i in {1..5}; do
-					# alpine doesn't have gnu grep, Perl regex is not supported by busybox
-					#LISTENING_ON="$(grep -oP '(?<=Extension host agent listening on )\\d+' $LOG_FILE)"
 					LISTENING_ON=$(sed -n 's/.*Extension host agent listening on \\([0-9]\\+\\).*/\\1/p' $LOG_FILE)
 					if [[ -n $LISTENING_ON ]]; then
 						break
