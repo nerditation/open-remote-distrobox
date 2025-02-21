@@ -118,6 +118,7 @@
 		"compile:tsup": "tsup",
 		"watch:tsup": "tsup --watch --dts",
 		"package": "vsce pack --no-dependencies",
+		"publish": "ovsx publish *.vsix",
 		"clean": "rm -rf out"
 	},
 	"devDependencies": {

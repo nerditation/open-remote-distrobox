@@ -1,0 +1,44 @@
+# when a new tag is pushed, create a new release from it
+# build the vsix package and attached it to the release
+# also upload to open-vsx.org
+
+name: release and publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out source code
+        uses: actions/checkout@v4
+      - name: check tag name and package version match
+        run: |
+          PKGVER=$(node -e 'console.log(require("./package.json").version)')
+          if [[ "v$PKGVER" != "${{ github.ref_name }}" ]]; then
+            echo ERROR: tag name doesn't match package version
+            exit 127
+          fi
+      - name: setup package manager
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - name: setup node with package cache
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+      - name: compile and lint
+        run: |
+          pnpm install
+          pnpm run compile
+          pnpm run lint
+      - name: generate vsix package
+        run: pnpm run package
+      - name: create release and attach vsix package
+        run: gh release create ${{ github.ref_name }} --generate-notes *.vsix
+      - name: publish to open-vsx.org
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: pnpm run publish
