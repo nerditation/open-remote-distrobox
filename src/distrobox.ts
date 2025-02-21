@@ -69,15 +69,11 @@ export abstract class CommandLineBuilder {
 	 * of `this.build()`.
 	 *
 	 * @param {cp.SpawnOptions} opts - the same options as `child_process.spawn()`
-	 * 	but `opts.env` will be merged with `process.env` if not `undefined`
 	 * @returns {cp.ChildProcess} the same as `child_process.spawn()`
 	 */
 	public spawn(opts?: cp.SpawnOptions) {
 		const args = this.build();
 		const cmd = args.shift()!;
-		if (opts?.env) {
-			opts.env = Object.assign({}, process.env, opts.env);
-		}
 		if (opts) {
 			return cp.spawn(cmd, args, opts);
 		} else {
