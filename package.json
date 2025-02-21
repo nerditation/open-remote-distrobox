@@ -12,6 +12,7 @@
 	"version": "0.0.1",
 	"publisher": "nerditation",
 	"private": true,
+	"preview": true,
 	"license": "MPL-2.0",
 	"repository": "https://github.com/nerditation/open-remote-distrobox",
 	"engines": {
