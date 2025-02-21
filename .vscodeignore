@@ -9,3 +9,4 @@ vscode.proposed.*.d.ts
 .eslintrc.json
 tsconfig.json
 pnpm-lock.yaml
+.editorconfig
