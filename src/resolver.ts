@@ -186,7 +186,7 @@ export class DistroboxResolver {
 					--port 0 \
 					--without-connection-token \
 					> $LOG_FILE \
-					 &
+					&
 				echo $! > $PID_FILE
 
 				for i in {1..5}; do
@@ -290,7 +290,7 @@ export class DistroboxResolver {
 			echo $count > $COUNT_FILE
 
 			if [[ $count -eq 0 ]]; then
-				kill $(cat $PID_FILE)
+				kill $(ps --ppid $(cat $PID_FILE) -o pid=)
 				rm -f $PORT_FILE $PID_FILE $COUNT_FILE
 			fi
 			`
