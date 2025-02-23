@@ -329,6 +329,8 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 	// I don't have arm system to test
 	// arm stuff stolen from `open-remote-wsl`
 	// https://github.com/jeanp413/open-remote-wsl/blob/20824d50a3346f5fbd7875d3319a1445d8dc1c1e/src/serverSetup.ts#L192
+	// also from vscode-remote-oss
+	// https://github.com/xaberus/vscode-remote-oss/blob/05938a2efda61006c7178081feb610c00ea53615/utils/update-reh-server.sh#L31
 	switch (arch) {
 		case "x86_64":
 		case "x86-64":
@@ -336,6 +338,7 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 			return "x64";
 		case "i386":
 		case "i686":
+			throw "32 bit x86 is not supported";
 			return "ia32";
 		case "armv7l":
 		case "armv8l":
@@ -343,8 +346,16 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 		case "arm64":
 		case "aarch64":
 			return "arm64";
+		case "ppc64le":
+			return "ppc64le";
+		case "riscv64":
+			return "riscv64";
+		case "loongarch64":
+			return "loong64";
+		case "s390x":
+			return "s390x";
 		default:
-			throw (`TODO linux arch ${arch}`);
+			throw (`unsupported linux arch ${arch}`);
 			return arch;
 	}
 }
