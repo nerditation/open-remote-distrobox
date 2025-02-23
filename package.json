@@ -9,7 +9,7 @@
 	"name": "open-remote-distrobox",
 	"displayName": "Open Remote - Distrobox",
 	"description": "manages vscodium remote extension host for distrobox",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"publisher": "nerditation",
 	"private": true,
 	"preview": true,
