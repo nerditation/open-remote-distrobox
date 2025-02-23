@@ -159,6 +159,20 @@ export class DistroboxResolver {
 	 */
 	public async try_start_new_server(): Promise<string> {
 		const { cmd, name, os, arch } = this;
+		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {}
+		const export_commands = [];
+		for (const name in env) {
+			const value = env[name];
+			if (typeof value == 'string') {
+				export_commands.push(`export ${name}="${value}"`)
+			} else if (value == true) {
+				const local_value = process.env[name];
+				if (local_value) {
+					export_commands.push(`export ${name}="${local_value}"`)
+				}
+			}
+		}
+		console.log("exported env for remote server: ", export_commands);
 		const output = await cmd.enter(name, "bash").pipe(
 			`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
@@ -178,6 +192,7 @@ export class DistroboxResolver {
 			flock -x 200
 
 			if [[ -f $SERVER_FILE ]]; then
+				${export_commands.join('\n')}
 				nohup \
 					$SERVER_FILE \
 					--accept-server-license-terms \

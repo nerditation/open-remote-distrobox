@@ -7,7 +7,7 @@
 		"ui"
 	],
 	"name": "open-remote-distrobox",
-	"displayName": "open-remote-distrobox",
+	"displayName": "Open Remote - Distrobox",
 	"description": "manages vscodium remote extension host for distrobox",
 	"version": "0.0.3",
 	"publisher": "nerditation",
@@ -51,6 +51,12 @@
 				"title": "Refresh the Distrobox Guest List in Remote Explorer",
 				"category": "Distrobox",
 				"icon": "$(refresh)"
+			},
+			{
+				"command": "open-remote-distrobox.settings",
+				"title": "Open the Settings for Distrobox",
+				"category": "Distrobox",
+				"icon": "$(gear)"
 			}
 		],
 		"views": {
@@ -79,6 +85,11 @@
 			"view/title": [
 				{
 					"command": "open-remote-distrobox.refresh",
+					"when": "view == distrobox.guests",
+					"group": "navigation"
+				},
+				{
+					"command": "open-remote-distrobox.settings",
 					"when": "view == distrobox.guests",
 					"group": "navigation"
 				}
@@ -117,6 +128,30 @@
 					"group": "remote_20_distrobox_statusbar"
 				}
 			]
+		},
+		"configuration": {
+			"title": "Open Remote - Distrobox",
+			"properties": {
+				"distroboxRemoteServer.launch.environment": {
+					"scope": "application",
+					"markdownDescription": "set environment variables for the remote server.\n\n because the server might be launched through `flatpak-spawn` etc, local environment variables are not guaranteed to be passed to the remote server.\n\n the values can be a string or `null`. if the value is `null`, it will be queried from `process.env`.\n\n please note, the schema is set to type `boolean` so the settings UI will display a grid, but only `true` should be used, variables with value `false` will be ignored.\n\n also note, these variables are set for the remote server using `export` bash commands, the value will be quoted using double quotes, if there are special characters, escape them carefully",
+					"type": "object",
+					"additionalProperties": false,
+					"patternProperties": {
+						"^[a-zA-Z_][a-zA-Z0-9_]*$": {
+							"description": "the key should be a valid bash variable name, and the value can be a string or `null`. when it's `null`, it is queried from `process.env`",
+							"type": [
+								"boolean",
+								"string"
+							],
+							"examples": [
+								true,
+								""
+							]
+						}
+					}
+				}
+			}
 		}
 	},
 	"packageManager": "pnpm@9.6.0",

@@ -44,6 +44,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.settings", () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:nerditation.open-remote-distrobox"))
+	);
+
+	context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
 			async resolve(authority, _context) {
 				console.log(`resolving ${authority}`);
