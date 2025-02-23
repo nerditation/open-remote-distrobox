@@ -17,8 +17,6 @@ import { DistroboxResolver } from './resolver';
 const resolved: DistroboxResolver[] = [];
 
 export async function activate(context: vscode.ExtensionContext) {
-	console.log('Congratulations, your extension "proposed-api-sample" is now active!');
-
 	const refresh_requested = new vscode.EventEmitter<void>;
 
 	context.subscriptions.push(refresh_requested);
