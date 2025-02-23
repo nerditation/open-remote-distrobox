@@ -159,16 +159,16 @@ export class DistroboxResolver {
 	 */
 	public async try_start_new_server(): Promise<string> {
 		const { cmd, name, os, arch } = this;
-		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {}
+		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
 		const export_commands = [];
 		for (const name in env) {
 			const value = env[name];
 			if (typeof value == 'string') {
-				export_commands.push(`export ${name}="${value}"`)
+				export_commands.push(`export ${name}="${value}"`);
 			} else if (value == true) {
 				const local_value = process.env[name];
 				if (local_value) {
-					export_commands.push(`export ${name}="${local_value}"`)
+					export_commands.push(`export ${name}="${local_value}"`);
 				}
 			}
 		}
