@@ -107,7 +107,7 @@
 				},
 				{
 					"command": "open-remote-distrobox.reopen-workspace-in-guest",
-					"when": "viewItem == distrobox.guest && workspaceFolderCount > 0",
+					"when": "viewItem == distrobox.guest",
 					"group": "inline"
 				}
 			],

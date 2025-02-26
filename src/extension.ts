@@ -192,8 +192,43 @@ async function reopen_command(name: string) {
 		}
 		dest = vscode.workspace.workspaceFile;
 	} else {
-		await vscode.window.showErrorMessage("workspace is not a single folder, but there's no workspace file");
-		return;
+		dest = vscode.window.activeTextEditor?.document.uri;
+		if (!dest) {
+			await vscode.window.showErrorMessage("nothing to re-open");
+			return;
+		}
+		const path = dest.fsPath;
+		if (!path.endsWith(".code-workspace")) {
+			if (dest.scheme == "vscode-remote" && dest.authority.startsWith(name)) {
+				return;
+			}
+			const choice = await vscode.window.showInformationMessage(
+				"you have not opened a folder or workspace, do you want to re-open a single file in the guest distro? NOTE: re-using current window is not supported for single file",
+				"yes",
+				"no"
+			);
+			if (choice != "yes") {
+				return;
+			}
+			const fileUri = vscode.Uri.from({
+				scheme: "vscode-remote",
+				authority: `distrobox+${encodeURIComponent(name)}`,
+				path,
+			});
+			// NOT WORKING:
+			// this command is internal to vscode and undocumented
+			// I found it in the source code:
+			// https://github.com/microsoft/vscode/blob/dfeb7b06f6095655ab0212ca1662e88ac6d0d045/src/vs/workbench/contrib/files/browser/fileActions.contribution.ts#L46
+			// unfortunately, the `forceReuseWindow` option does NOT work.
+			await vscode.commands.executeCommand(
+				"_files.windowOpen",
+				[{
+					fileUri,
+				}],
+				{ forceReuseWindow: true }
+			);
+			return;
+		}
 	}
 	if (dest.scheme == 'file'
 		|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
