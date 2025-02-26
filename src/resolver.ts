@@ -294,6 +294,9 @@ export class DistroboxResolver {
 			PORT_FILE=$RUN_DIR/port
 			PID_FILE=$RUN_DIR/pid
 
+			exec 1>&-
+			sleep 5
+
 			# open lock file
 			exec 200> $LOCK_FILE
 
@@ -306,9 +309,13 @@ export class DistroboxResolver {
 
 			if [[ $count -eq 0 ]]; then
 				kill $(ps --ppid $(cat $PID_FILE) -o pid=)
+				kill $(cat $PID_FILE)
 				rm -f $PORT_FILE $PID_FILE $COUNT_FILE
 			fi
-			`
+			`,
+			{
+				detached: true,
+			}
 		);
 	}
 

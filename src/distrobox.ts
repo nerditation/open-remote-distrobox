@@ -100,14 +100,15 @@ export abstract class CommandLineBuilder {
 	 * @param input - data written to the `stdin` of the child process
 	 * @returns {Promise<Buffer>} the raw bytes read from the `stdout`
 	 */
-	public pipe(input: any): Promise<Buffer> {
-		const child = this.spawn({ stdio: ['pipe', 'pipe', 'inherit'] });
+	public pipe(input: any, opts?: cp.SpawnOptions): Promise<Buffer> {
+		const child = this.spawn(Object.assign(opts ?? {}, { stdio: ['pipe', 'pipe', 'inherit'] }));
 		child.stdin?.end(input);
 		return new Promise((resolve, reject) => {
 			child.stdout?.on('error', reject);
 			const output_chunks: Uint8Array[] = [];
 			child.stdout?.on('data', (chunk) => output_chunks.push(chunk as Uint8Array));
 			child.stdout?.on('end', () => resolve(Buffer.concat(output_chunks)));
+			child.unref();
 		});
 	}
 }
