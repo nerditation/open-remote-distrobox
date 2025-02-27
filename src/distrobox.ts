@@ -239,6 +239,13 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	public enter(name?: string, ...args: string[]): EnterCommandBuilder {
 		return new EnterCommandBuilder(this, name, ...args);
 	}
+
+	/**
+	 * shorhand to construct a builder for the subcommand `distrobox-create`
+	 */
+	public create(): CreateCommandBuilder {
+		return new CreateCommandBuilder(this);
+	}
 }
 
 /**
@@ -539,4 +546,499 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 		return argv.concat(this._args);
 	}
 
+}
+
+/**
+ * the builder for the `distrobox create` command
+ *
+```console
+distrobox version: 1.8.0
+
+Usage:
+
+		  distrobox create --image alpine:latest --name test --init-hooks "touch /var/tmp/test1 && touch /var/tmp/test2"
+		  distrobox create --image fedora:39 --name test --additional-flags "--env MY_VAR-value"
+		  distrobox create --image fedora:39 --name test --volume /opt/my-dir:/usr/local/my-dir:rw --additional-flags "--pids-limit 100"
+		  distrobox create -i docker.io/almalinux/8-init --init --name test --pre-init-hooks "dnf config-manager --enable powertools && dnf -y install epel-release"
+		  distrobox create --clone fedora-39 --name fedora-39-copy
+		  distrobox create --image alpine my-alpine-container
+		  distrobox create --image registry.fedoraproject.org/fedora-toolbox:latest --name fedora-toolbox-latest
+		  distrobox create --pull --image centos:stream9 --home ~/distrobox/centos9
+		  distrobox create --image alpine:latest --name test2 --additional-packages "git tmux vim"
+		  distrobox create --image ubuntu:22.04 --name ubuntu-nvidia --nvidia
+
+		  DBX_NON_INTERACTIVE=1 DBX_CONTAINER_NAME=test-alpine DBX_CONTAINER_IMAGE=alpine distrobox-create
+
+Options:
+
+		  --image/-i:             image to use for the container  default: registry.opensuse.org/opensuse/distrobox:latest
+		  --name/-n:              name for the distrobox          default: my-distrobox
+		  --hostname:             hostname for the distrobox      default: localhost.localdomain
+		  --pull/-p:              pull the image even if it exists locally (implies --yes)
+		  --yes/-Y:               non-interactive, pull images without asking
+		  --root/-r:              launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
+										  way over "sudo distrobox" (note: if using a program other than 'sudo' for root privileges is necessary,
+										  specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
+		  --clone/-c:             name of the distrobox container to use as base for a new container
+										  this will be useful to either rename an existing distrobox or have multiple copies
+										  of the same environment.
+		  --home/-H:              select a custom HOME directory for the container. Useful to avoid host's home littering with temp files.
+		  --volume:               additional volumes to add to the container
+		  --additional-flags/-a:  additional flags to pass to the container manager command
+		  --additional-packages/-ap:      additional packages to install during initial container setup
+		  --init-hooks:           additional commands to execute at the end of container initialization
+		  --pre-init-hooks:       additional commands to execute at the start of container initialization
+		  --init/-I:              use init system (like systemd) inside the container.
+										  this will make host's processes not visible from within the container. (assumes --unshare-process)
+										  may require additional packages depending on the container image: https://github.com/89luca89/distrobox/blob/main/docs/useful_tips.md#using-init-system-inside-a-distrobox
+		  --nvidia:               try to integrate host's nVidia drivers in the guest
+		  --unshare-devsys:          do not share host devices and sysfs dirs from host
+		  --unshare-groups:          do not forward user's additional groups into the container
+		  --unshare-ipc:          do not share ipc namespace with host
+		  --unshare-netns:        do not share the net namespace with host
+		  --unshare-process:          do not share process namespace with host
+		  --unshare-all:          activate all the unshare flags below
+		  --compatibility/-C:     show list of compatible images
+		  --help/-h:              show this message
+		  --no-entry:             do not generate a container entry in the application list
+		  --dry-run/-d:           only print the container manager command generated
+		  --verbose/-v:           show more verbosity
+		  --version/-V:           show version
+
+		  --absolutely-disable-root-password-i-am-really-positively-sure: ⚠ ⚠  when setting up a rootful distrobox, this will skip user password setup, leaving it blank. ⚠ ⚠
+
+Compatibility:
+
+		  for a list of compatible images and container managers, please consult the man page:
+					 man distrobox-compatibility
+		  or run
+					 distrobox create --compatibility
+		  or consult the documentation page on: https://github.com/89luca89/distrobox/blob/main/docs/compatibility.md
+```
+ */
+export class CreateCommandBuilder extends CommandLineBuilder {
+	_cmd: MainCommandBuilder;
+
+	_image: string | undefined;
+	_name: string | undefined;
+	_hostname: string | undefined;
+	_pull: boolean = false;
+	_yes: boolean = false;
+	_root: boolean = false;
+	_clone: string | undefined;
+	_home: string | undefined;
+
+	_volume: string | undefined;
+	_additional_flags: string[] = [];
+	_additional_packages: string[] = [];
+	_init_hooks: string | undefined;
+	_pre_init_hooks: string | undefined;
+	_init: boolean = false;
+	_nvidia: boolean = false;
+
+	_unshare_devsys: boolean = false;
+	_unshare_groups: boolean = false;
+	_unshare_ipc: boolean = false;
+	_unshare_netns: boolean = false;
+	_unshare_process: boolean = false;
+	_unshare_all: boolean = false;
+
+	_compatibility: boolean = false;
+	_help: boolean = false;
+	_no_entry: boolean = false;
+	_dry_run: boolean = false;
+	_verbose: boolean = false;
+	_version: boolean = false;
+
+	_absolutely_disable_root_password_i_am_really_positively_sure: boolean = false;
+
+	constructor(cmd: MainCommandBuilder) {
+		super();
+		this._cmd = cmd;
+	}
+
+	/**
+	 * build
+	 */
+	public build(): string[] {
+		const argv = [...this._cmd.argv, "create"];
+
+		if (this._image) {
+			argv.push("--image", this._image);
+		}
+		if (this._name) {
+			argv.push("--name", this._name);
+		}
+		if (this._hostname) {
+			argv.push("--hostname", this._hostname);
+		}
+		if (this._pull) {
+			argv.push("--pull");
+		}
+		if (this._yes) {
+			argv.push("--yes");
+		}
+		if (this._root) {
+			argv.push("--root");
+		}
+		if (this._clone) {
+			argv.push("--clone", this._clone);
+		}
+		if (this._home) {
+			argv.push("--home", this._home);
+		}
+		if (this._volume) {
+			argv.push("--volume", this._volume);
+		}
+		if (this._additional_flags.length > 0) {
+			argv.push("--additional-flags", this._additional_flags.join(' '));
+		}
+		if (this._additional_packages.length > 0) {
+			argv.push("--additional-packages", this._additional_packages.join(' '));
+		}
+		if (this._init_hooks) {
+			argv.push("--init-hooks", this._init_hooks);
+		}
+		if (this._pre_init_hooks) {
+			argv.push("--pre-init-hooks", this._pre_init_hooks);
+		}
+		if (this._init) {
+			argv.push("--init");
+		}
+		if (this._nvidia) {
+			argv.push("--nvidia");
+		}
+		if (this._unshare_devsys) {
+			argv.push("--unshare-devsys");
+		}
+		if (this._unshare_groups) {
+			argv.push("--unshare-groups");
+		}
+		if (this._unshare_ipc) {
+			argv.push("--unshare-ipc");
+		}
+		if (this._unshare_netns) {
+			argv.push("--unshare-netns");
+		}
+		if (this._unshare_process) {
+			argv.push("--unshare-process");
+		}
+		if (this._unshare_all) {
+			argv.push("--unshare-all");
+		}
+		if (this._compatibility) {
+			argv.push("--compatibility");
+		}
+		if (this._help) {
+			argv.push("--help");
+		}
+		if (this._no_entry) {
+			argv.push("--no-entry");
+		}
+		if (this._dry_run) {
+			argv.push("--dry-run");
+		}
+		if (this._verbose) {
+			argv.push("--verbose");
+		}
+		if (this._version) {
+			argv.push("--version");
+		}
+		if (this._absolutely_disable_root_password_i_am_really_positively_sure) {
+			argv.push("--absolutely-disable-root-password-i-am-really-positively-sure");
+		}
+		return argv;
+	}
+
+	/**
+	 * --image/-i:
+	 *
+	 * image to use for the container
+	 * default: registry.opensuse.org/opensuse/distrobox:latest
+	 */
+	public image(image: string) {
+		this._image = image;
+		return this;
+	}
+
+	/**
+	 * --name/-n:
+	 *
+	 * name for the distrobox
+	 * default: my-distrobox
+	 */
+	public name(name: string) {
+		this._name = name;
+		return this;
+	}
+
+	/**
+	 * --hostname:
+	 *
+	 * hostname for the distrobox
+	 * default: localhost.localdomain
+	 */
+	public hostname(hostname: string) {
+		this._hostname = hostname;
+		return this;
+	}
+
+	/**
+	 * --pull/-p:
+	 *
+	 * pull the image even if it exists locally (implies --yes)
+	 */
+	public pull() {
+		this._pull = true;
+		return this;
+	}
+
+	/**
+	 * --yes/-Y:
+	 *
+	 * non-interactive, pull images without asking
+	 */
+	public yes() {
+		this._yes = true;
+		return this;
+	}
+
+	/**
+	 * --root/-r:
+	 *
+	 * launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
+	 * way over "sudo distrobox" (note: if using a program other than 'sudo' for root privileges is necessary,
+	 * specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
+	 */
+	public root() {
+		this._root = true;
+		return this;
+	}
+
+	/**
+	 * --clone/-c:
+	 *
+	 * name of the distrobox container to use as base for a new container
+	 *
+	 * this will be useful to either rename an existing distrobox or have multiple copies
+	 * of the same environment.
+	 */
+	public clone(clone: string) {
+		this._clone = clone;
+		return this;
+	}
+
+	/**
+	 * --home/-H:
+	 *
+	 * select a custom HOME directory for the container. Useful to avoid host's home littering with temp files.
+	 */
+	public home(home: string) {
+		this._home = home;
+		return this;
+	}
+
+	/**
+	 * --volume:
+	 *
+	 * additional volumes to add to the container
+	 */
+	public volume(volume: string) {
+		this._volume = volume;
+		return this;
+	}
+
+	/**
+	 * --additional-flags/-a:
+	 *
+	 * additional flags to pass to the container manager command
+	 */
+	public additional_flags(...flags: string[]) {
+		this._additional_flags = flags;
+		return this;
+	}
+
+	/**
+	 * --additional-packages/-ap:
+	 *
+	 * additional packages to install during initial container setup
+	 */
+	public additional_packages(...packages: string[]) {
+		this._additional_packages = packages;
+		return this;
+	}
+
+	/**
+	 * --init-hooks:
+	 *
+	 * additional commands to execute at the end of container initialization
+	 */
+	public init_hooks(hooks: string) {
+		this._init_hooks = hooks;
+		return this;
+	}
+
+	/**
+	 * --pre-init-hooks:
+	 *
+	 * additional commands to execute at the start of container initialization
+	 */
+	public pre_init_hooks(hooks: string) {
+		this._pre_init_hooks = hooks;
+		return this;
+	}
+
+	/**
+	 * --init/-I:
+	 *
+	 * use init system (like systemd) inside the container.
+	 *
+	 * this will make host's processes not visible from within the container. (assumes --unshare-process)
+	 * may require additional packages depending on the container image:
+	 * https://github.com/89luca89/distrobox/blob/main/docs/useful_tips.md#using-init-system-inside-a-distrobox
+	 */
+	public init() {
+		this._init = true;
+		return this;
+	}
+
+	/**
+	 * --nvidia:
+	 *
+	 * try to integrate host's nVidia drivers in the guest
+	 */
+	public nvidia() {
+		this._nvidia = true;
+		return this;
+	}
+
+	/**
+	 * --unshare-devsys:
+	 *
+	 * do not share host devices and sysfs dirs from host
+	 */
+	public unshare_devsys() {
+		this._unshare_devsys = true;
+		return this;
+	}
+
+	/**
+	 * --unshare-groups:
+	 *
+	 * do not forward user's additional groups into the container
+	 */
+	public unshare_groups() {
+		this._unshare_groups = true;
+		return this;
+	}
+
+	/**
+	 * --unshare-ipc:
+	 *
+	 * do not share ipc namespace with host
+	 */
+	public unshare_ipc() {
+		this._unshare_ipc = true;
+		return this;
+	}
+
+	/**
+	 * --unshare-netns:
+	 *
+	 * do not share the net namespace with host
+	 */
+	public unshare_netns() {
+		this._unshare_netns = true;
+		return this;
+	}
+
+	/**
+	 * --unshare-process:
+	 *
+	 * do not share process namespace with host
+	 */
+	public unshare_process() {
+		this._unshare_process = true;
+		return this;
+	}
+
+	/**
+	 * --unshare-all:
+	 *
+	 * activate all the unshare flags below
+	 */
+	public unshare_all() {
+		this._unshare_all = true;
+		return this;
+	}
+
+	/**
+	 * --compatibility/-C:
+	 *
+	 * show list of compatible images
+	 */
+	public compatibility() {
+		this._compatibility = true;
+		return this;
+	}
+
+	/**
+	 * --help/-h:
+	 *
+	 * show this message
+	 */
+	public help() {
+		this._help = true;
+		return this;
+	}
+
+	/**
+	 * --no-entry:
+	 *
+	 * do not generate a container entry in the application list
+	 */
+	public no_entry() {
+		this._no_entry = true;
+		return this;
+	}
+
+	/**
+	 * dry-run/-d:
+	 *
+	 * only print the container manager command generated
+	 */
+	public dry_run() {
+		this._dry_run = true;
+		return this;
+	}
+
+	/**
+	 * --verbose/-v:
+	 *
+	 * show more verbosity
+	 */
+	public verbose() {
+		this._verbose = true;
+		return this;
+	}
+
+	/**
+	 * --version/-V:
+	 *
+	 * show version
+	 */
+	public version() {
+		this._version = true;
+		return this;
+	}
+
+	/**
+	 * absolutely-disable-root-password-i-am-really-positively-sure:
+	 *
+	 * ⚠ ⚠  when setting up a rootful distrobox, this will skip user password setup, leaving it blank. ⚠ ⚠
+	 */
+	public absolutely_disable_root_password_i_am_really_positively_sure() {
+		this._absolutely_disable_root_password_i_am_really_positively_sure = true;
+		return this;
+	}
 }
