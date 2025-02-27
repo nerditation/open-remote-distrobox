@@ -170,6 +170,26 @@ export class MainCommandBuilder extends CommandLineBuilder {
 			console.log("local distrobox not found");
 		}
 		try {
+			const host_spawn_path = await which('host-spawn');
+			console.log(`inside container with host-spawn: ${host_spawn_path}`);
+			const banner = await new Promise<string>((resolve, reject) => {
+				cp.execFile(
+					host_spawn_path,
+					['distrobox', '--version'],
+					(error, stdout) => {
+						if (error) {
+							reject(error);
+						} else {
+							resolve(stdout);
+						}
+					});
+			});
+			console.log(`found distrobox on container host: ${banner}`);
+			return new MainCommandBuilder([host_spawn_path, 'distrobox']);
+		} catch {
+			console.log("didn't find distrobox with host-spawn");
+		}
+		try {
 			const flatpak_spawn_path = await which('flatpak-spawn');
 			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`);
 			const banner = await new Promise<string>((resolve, reject) => {
