@@ -1,7 +1,8 @@
 {
 	"enabledApiProposals": [
 		"resolvers",
-		"contribViewsRemote"
+		"contribViewsRemote",
+		"contribRemoteHelp"
 	],
 	"extensionKind": [
 		"ui"
@@ -73,6 +74,10 @@
 					"group": "targets"
 				}
 			]
+		},
+		"remoteHelp": {
+			"getStarted": "https://github.com/nerditation/open-remote-distrobox",
+			"reportIssue": "https://github.com/nerditation/open-remote-distrobox/issues/new"
 		},
 		"resourceLabelFormatters": [
 			{
