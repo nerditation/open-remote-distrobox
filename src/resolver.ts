@@ -381,3 +381,75 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 			return arch;
 	}
 }
+
+export class ServerInformation implements vscode.TreeDataProvider<string> {
+
+	constructor(
+		private guest_name: string,
+		private guest_os: string,
+		private guest_arch: string,
+
+		private server_runtime_directory: string,
+		private server_path: string,
+		private server_port: number,
+		private server_pid1: number,
+		private server_pid2: number,
+	) {
+	}
+
+	static async from(resolver: DistroboxResolver): Promise<ServerInformation> {
+		const { name, os, arch } = resolver;
+		const output = await resolver.cmd.enter(name, "bash").pipe(
+			`
+			RUN_DIR="$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}"
+			echo $RUN_DIR
+			echo "$HOME/${server_binary_path(os, arch)}"
+			cat $RUN_DIR/port
+			cat $RUN_DIR/pid
+			ps --ppid $(cat $RUN_DIR/pid) -o pid=
+			`
+		);
+		const [
+			server_runtime_directory,
+			server_path,
+			server_port,
+			server_pid1,
+			server_pid2,
+		] = new TextDecoder("utf8").decode(output).split('\n');
+
+		return new ServerInformation(
+			name,
+			os,
+			arch,
+
+			server_runtime_directory,
+			server_path,
+			parseInt(server_port, 10)!,
+			parseInt(server_pid1, 10)!,
+			parseInt(server_pid2, 10)!
+		);
+	}
+
+	async getChildren(element?: string | undefined): Promise<string[]> {
+		if (element) {
+			return [];
+		} else {
+			return [
+				`guest name: ${this.guest_name}`,
+				`guest os: ${this.guest_os}`,
+				`guest architecture: ${this.guest_arch}`,
+				"----------------",
+				`server runtime directory: ${this.server_runtime_directory}`,
+				`server path: ${this.server_path}`,
+				`server port: ${this.server_port}`,
+				`server pid (wrapper): ${this.server_pid1}`,
+				`server pid (node): ${this.server_pid2}`,
+				``
+			];
+		}
+	}
+
+	getTreeItem(element: string): vscode.TreeItem {
+		return new vscode.TreeItem(element);
+	}
+}

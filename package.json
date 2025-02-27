@@ -71,7 +71,14 @@
 					"name": "Distrobox Guests",
 					"id": "distrobox.guests",
 					"remoteName": "distrobox",
-					"group": "targets"
+					"group": "targets@1"
+				},
+				{
+					"name": "Remote Server Information",
+					"id": "distrobox.server-info",
+					"remoteName": "distrobox",
+					"group": "details@1",
+					"when": "remoteName == distrobox"
 				}
 			]
 		},

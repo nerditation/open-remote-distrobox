@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import * as os from 'os';
 
 import * as dbx from './distrobox';
-import { DistroboxResolver } from './resolver';
+import { DistroboxResolver, ServerInformation } from './resolver';
 
 // `context.subscriptions` does NOT await async operations
 // have to use the `deactivate()` hook
@@ -72,6 +72,9 @@ export async function activate(context: vscode.ExtensionContext) {
 								workspaceTooltip: `Connected to ${guest_name}`
 							}
 						})
+					);
+					context.subscriptions.push(
+						vscode.window.registerTreeDataProvider("distrobox.server-info", await ServerInformation.from(resolver))
 					);
 					return new vscode.ResolvedAuthority("localhost", port);
 				}
