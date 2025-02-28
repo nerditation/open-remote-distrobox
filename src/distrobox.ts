@@ -138,6 +138,8 @@ Choose one of the available commands:
  */
 export class MainCommandBuilder extends CommandLineBuilder {
 
+	public argv: string[];
+
 	/**
 	 * construct the builder with the given command line.
 	 *
@@ -149,8 +151,9 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	 * ```
 	 * @param argv - the command line to invoke `distrobox`
 	 */
-	constructor(public argv: string[]) {
+	constructor(...argv: string[]) {
 		super();
+		this.argv = argv;
 	}
 
 	/**
@@ -165,7 +168,7 @@ export class MainCommandBuilder extends CommandLineBuilder {
 		try {
 			const distrobox_path = await which('distrobox');
 			console.log(`found distrobox: ${distrobox_path}`);
-			return new MainCommandBuilder([distrobox_path]);
+			return new MainCommandBuilder(distrobox_path);
 		} catch {
 			console.log("local distrobox not found");
 		}
@@ -185,7 +188,7 @@ export class MainCommandBuilder extends CommandLineBuilder {
 					});
 			});
 			console.log(`found distrobox on container host: ${banner}`);
-			return new MainCommandBuilder([host_spawn_path, 'distrobox']);
+			return new MainCommandBuilder(host_spawn_path, 'distrobox');
 		} catch {
 			console.log("didn't find distrobox with host-spawn");
 		}
@@ -205,14 +208,14 @@ export class MainCommandBuilder extends CommandLineBuilder {
 					});
 			});
 			console.log(`found distrobox on flatpak host: ${banner}`);
-			return new MainCommandBuilder([flatpak_spawn_path, '--host', 'distrobox']);
+			return new MainCommandBuilder(flatpak_spawn_path, '--host', 'distrobox');
 		} catch {
 			console.log("didn't find distrobox on flatpak host");
 		}
 		try {
 			const distrobox_host_exec_path = await which('distrobox-host-exec');
 			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`);
-			return new MainCommandBuilder([distrobox_host_exec_path, 'distrobox']);
+			return new MainCommandBuilder(distrobox_host_exec_path, 'distrobox');
 		} catch {
 			console.log("not inside distrobox guest");
 		}
