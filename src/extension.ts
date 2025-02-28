@@ -513,4 +513,17 @@ ${stderr}
 		});
 		await vscode.window.showTextDocument(doc);
 	}
+
+	if (exit_code == undefined) {
+		const argv = cmd.enter(name).build();
+		const argv0 = argv.shift();
+		const terminal = vscode.window.createTerminal({
+			name: "distrobox initial setup",
+			shellPath: argv0,
+			shellArgs: argv,
+			isTransient: true,
+			message: "running initial setup for the new distrobox, this may take some time..."
+		});
+		terminal.show(true);
+	}
 }
