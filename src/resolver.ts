@@ -62,7 +62,7 @@ export class DistroboxResolver {
 		if (is_musl) {
 			resolver.os = "alpine";
 			resolver.arch = linux_arch_to_nodejs_arch(is_musl[1]);
-		} else if (ldd_info.match(/GNU libc/)) {
+		} else if (ldd_info.match(/Free Software Foundation/)) {
 			// glibc's ldd doesn't show the archtecture, need probe further
 			// can't use `uname`, 32 bit guests can run on 64 bit host
 			const { stdout: ldd_info } = await cmd.enter(name, "ldd", "/bin/sh").exec();
