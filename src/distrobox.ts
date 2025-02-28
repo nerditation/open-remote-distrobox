@@ -548,7 +548,9 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 			argv.push("--version");
 		}
 
-		argv.push("--");
+		if (this._args.length > 0) {
+			argv.push("--");
+		}
 
 		return argv.concat(this._args);
 	}
