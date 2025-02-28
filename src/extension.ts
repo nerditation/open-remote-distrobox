@@ -481,7 +481,7 @@ async function create_command() {
 		async (progress) => {
 			progress.report({
 				message: "this may take a while if the image needs to be pulled from servers..."
-			})
+			});
 			const result = await builder.exec();
 			return result;
 		}
