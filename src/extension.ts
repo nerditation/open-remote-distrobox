@@ -46,6 +46,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.create", create_command)
+	);
+
+	context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
 			async resolve(authority, _context) {
 				console.log(`resolving ${authority}`);
@@ -268,4 +272,245 @@ async function list_guest_distros(): Promise<string[]> {
 function strip_prefix(subject: string, prefix: string): string {
 	console.assert(subject.startsWith(prefix));
 	return subject.slice(prefix.length);
+}
+
+// TODO:
+// better to show a user friendly wizard dialog, but I don't know how
+// maybe take a look at https://github.com/robstryker/vscode-wizard-example-extension
+async function create_command() {
+	const cmd = await dbx.MainCommandBuilder.auto();
+
+	const name = await vscode.window.showInputBox({
+		ignoreFocusOut: true,
+		title: "name",
+		placeHolder: "type the name of the distrobox container. empty input will cancel",
+	});
+	if (!name || name == "") {
+		return;
+	}
+
+	const list_compatibile_images = async (cmd: dbx.MainCommandBuilder): Promise<string[]> => {
+		const { stdout } = await cmd.create().compatibility().exec();
+		return stdout.split('\n').map(s => s.trim()).filter(s => s != "");
+	}
+	let image = await vscode.window.showQuickPick(list_compatibile_images(cmd), {
+		ignoreFocusOut: true,
+		title: "compatible image",
+		placeHolder: "select a compatible image, or press Escape for custom image",
+	});
+	if (!image) {
+		image = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "custom image",
+			placeHolder: "type the image you want to use, empty input will cancel"
+		});
+		if (!image || image == "") {
+			return;
+		}
+	}
+
+	const builder = cmd.create()
+		.yes()
+		.name(name)
+		.image(image);
+
+	const advanced = await vscode.window.showQuickPick(
+		[
+			"No",
+			"Yes",
+		],
+		{
+			ignoreFocusOut: true,
+			title: "advanced",
+			placeHolder: "show advanced options? (they all have good default values)"
+		}
+	);
+	if (advanced == "Yes") {
+		const hostname = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "hostname",
+			placeHolder: "the hostname of the guest system. default: localhost.localdomain",
+		});
+		if (hostname && hostname != "") {
+			builder.hostname(hostname);
+		}
+		const home = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "home",
+			placeHolder: "the home directory. default: same as host",
+		});
+		if (home && home != "") {
+			builder.home(home);
+		}
+		const volume = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "volume",
+			placeHolder: "additional volumes to add to the container",
+		});
+		if (volume && volume != "") {
+			builder.volume(volume);
+		}
+		const af = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "additional flags",
+			placeHolder: "additional flags to pass to the container manager command"
+		});
+		if (af && af != "") {
+			builder.additional_flags(af);
+		}
+		const ap = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "addtional packages",
+			placeHolder: "additional packages to install during initial container setup"
+		});
+		if (ap && ap != "") {
+			builder.additional_packages(ap);
+		}
+		const init_hooks = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "init hooks",
+			placeHolder: "additional commands to execute at the END of container initialization",
+		});
+		if (init_hooks && init_hooks != "") {
+			builder.init_hooks(init_hooks);
+		}
+		const pre_init_hooks = await vscode.window.showInputBox({
+			ignoreFocusOut: true,
+			title: "pre-init hooks",
+			placeHolder: "additional commands to execute at the START of container initialization",
+		});
+		if (pre_init_hooks && pre_init_hooks != "") {
+			builder.pre_init_hooks(pre_init_hooks);
+		}
+
+		const pick = (label: string, detail: string): vscode.QuickPickItem => {
+			return {
+				label,
+				detail,
+				alwaysShow: true,
+			};
+		};
+
+		const separator = (label: string): vscode.QuickPickItem => {
+			return {
+				label,
+				kind: vscode.QuickPickItemKind.Separator
+			};
+		};
+		const flag_picks = await vscode.window.showQuickPick(
+			[
+				pick("no entry", "do not generate a container entry in the application list"),
+				pick("verbose", "show more verbosity"),
+				pick("dry run", "only print the container manager command generated"),
+				pick("pull", "pull the image even if it exsists locally"),
+				pick("init", "use init system (like systemd) inside the container. this will make host's process not visible from within the container. (assumes --unshare-process)"),
+				pick("nvidia", "try to integrate host's nVidia drivers in the guest"),
+				separator("container namespaces"),
+				pick("unshare all", "activate all the unshare flags below"),
+				pick("unshare devsys", "do not share host devices and sysfs dirs from host"),
+				pick("unshare groups", "do not forward user's additional groups into the container"),
+				pick("unshare ipc", "do not share ipc namespace with host"),
+				pick("unshare netns", "do not share the net namespace with host"),
+				pick("unshare process", "do not share process namespace with host"),
+			],
+			{
+				ignoreFocusOut: true,
+				canPickMany: true,
+				title: "flags",
+				placeHolder: "select the flags you want to set",
+			}
+		) ?? [];
+		const flags = new Set(flag_picks.map(item => item.label));
+		if (flags.has("no entry")) {
+			builder.no_entry();
+		}
+		if (flags.has("verbose")) {
+			builder.verbose();
+		}
+		if (flags.has("dry run")) {
+			builder.dry_run();
+		}
+		if (flags.has("pull")) {
+			builder.pull();
+		}
+		if (flags.has("init")) {
+			builder.init();
+		}
+		if (flags.has("nvidia")) {
+			builder.nvidia();
+		}
+		if (flags.has("unshare all")) {
+			builder.unshare_all();
+		}
+		if (flags.has("unshare devsys")) {
+			builder.unshare_devsys();
+		}
+		if (flags.has("unshare groups")) {
+			builder.unshare_groups();
+		}
+		if (flags.has("unshare ipc")) {
+			builder.unshare_ipc();
+		}
+		if (flags.has("unshare netns")) {
+			builder.unshare_netns();
+		}
+		if (flags.has("unshare process")) {
+			builder.unshare_process();
+		}
+	}
+	if ("Yes" != await vscode.window.showQuickPick(
+		[
+			"No",
+			"Yes",
+		],
+		{
+			ignoreFocusOut: true,
+			title: "final confirmation",
+			placeHolder: "last chance to cancel! do you want to continue?"
+		}
+	)) {
+		return;
+	}
+	const { stdout, stderr, exit_code } = await builder.exec();
+	let show_detail;
+	if (exit_code) {
+		show_detail = await vscode.window.showErrorMessage(
+			"error running command `distrobox create`",
+			"show detail"
+		);
+	} else {
+		show_detail = await vscode.window.showInformationMessage(
+			"command `distrobox create` run successfully",
+			"show detail"
+		);
+	}
+	if (show_detail) {
+		const detail = `
+command:
+
+\`\`\`
+${builder.build().join(' ')}
+\`\`\`
+
+exit code: ${exit_code ?? 0}
+
+stdout:
+
+\`\`\`console
+${stdout}
+\`\`\`
+
+stderr:
+
+\`\`\`console
+${stderr}
+\`\`\`
+`;
+
+		const doc = await vscode.workspace.openTextDocument({
+			language: "markdown",
+			content: detail,
+		});
+		await vscode.window.showTextDocument(doc);
+	}
 }

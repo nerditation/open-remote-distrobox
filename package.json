@@ -63,6 +63,12 @@
 				"title": "Open the Settings for Distrobox",
 				"category": "Distrobox",
 				"icon": "$(gear)"
+			},
+			{
+				"command": "open-remote-distrobox.create",
+				"title": "Create a New Distrobox Guest Container",
+				"category": "Distrobox",
+				"icon": "$(plus)"
 			}
 		],
 		"views": {
@@ -107,6 +113,11 @@
 				},
 				{
 					"command": "open-remote-distrobox.settings",
+					"when": "view == distrobox.guests",
+					"group": "navigation"
+				},
+				{
+					"command": "open-remote-distrobox.create",
 					"when": "view == distrobox.guests",
 					"group": "navigation"
 				}
