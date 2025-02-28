@@ -246,6 +246,13 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	public create(): CreateCommandBuilder {
 		return new CreateCommandBuilder(this);
 	}
+
+	/**
+	 * shorhand to construct a builder for the subcommand `distrobox-rm`
+	 */
+	public rm(name: string): RmCommandBuilder {
+		return new RmCommandBuilder(this, name);
+	}
 }
 
 /**
@@ -1039,6 +1046,152 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 */
 	public absolutely_disable_root_password_i_am_really_positively_sure() {
 		this._absolutely_disable_root_password_i_am_really_positively_sure = true;
+		return this;
+	}
+}
+
+/**
+ * the builder for the `distrobox rm` subcommand
+ *
+```console
+distrobox version: 1.8.0
+
+Usage:
+
+		  distrobox-rm [-f/--force] container-name [container-name1 container-name2 ...]
+
+Options:
+
+		  --all/-a:               delete all distroboxes
+		  --force/-f:             force deletion
+		  --rm-home:              remove the mounted home if it differs from the host user's one
+		  --root/-r:              launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
+										  way over "sudo distrobox" (note: if using a program other than 'sudo' for root privileges is necessary,
+										  specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
+		  --help/-h:              show this message
+		  --verbose/-v:           show more verbosity
+		  --version/-V:           show version
+
+```
+ */
+export class RmCommandBuilder extends CommandLineBuilder {
+	_cmd: MainCommandBuilder;
+	_name: string;
+	_all: boolean = false;
+	_force: boolean = false;
+	_rm_home: boolean = false;
+	_root: boolean = false;
+	_help: boolean = false;
+	_verbose: boolean = false;
+	_version: boolean = false;
+
+	constructor(cmd: MainCommandBuilder, name: string) {
+		super();
+		this._cmd = cmd;
+		this._name = name;
+	}
+
+	/**
+	 * build
+	 */
+	public build(): string[] {
+		const argv = [...this._cmd.argv, "rm"];
+		if (this._all) {
+			argv.push("--all");
+		}
+		if (this._force) {
+			argv.push("--force");
+		}
+		if (this._rm_home) {
+			argv.push("--rm-home");
+		}
+		if (this._root) {
+			argv.push("--root");
+		}
+		if (this._help) {
+			argv.push("--help");
+		}
+		if (this._verbose) {
+			argv.push("--verbose");
+		}
+		if (this._version) {
+			argv.push("--version");
+		}
+
+		argv.push(this._name);
+
+		return argv;
+	}
+
+	/**
+	 * --all/-a:
+	 *
+	 * delete all distroboxes
+	 */
+	public all() {
+		this._all = true;
+		return this;
+	}
+
+	/**
+	 * --force/-f:
+	 *
+	 * force deletion
+	 */
+	public force() {
+		this._force = true;
+		return this;
+	}
+
+	/**
+	 * --rm-home:
+	 *
+	 * remove the mounted home if it differs from the host user's one
+	 */
+	public rm_home() {
+		this._rm_home = true;
+		return this;
+	}
+
+	/**
+	 * --root/-r:
+	 *
+	 * launch podman/docker/lilipod with root privileges. Note that if you need root this is the preferred
+	 * way over "sudo distrobox" (note: if using a program other than 'sudo' for root privileges is necessary,
+	 * specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
+	 */
+	public root() {
+		this._root = true;
+		return this;
+	}
+
+	/**
+	 * --help/-h:
+	 *
+	 * show this message
+	 */
+	public help() {
+		this._help = true;
+		return this;
+	}
+
+	/**
+	 * --verbose/-v:
+	 *
+	 * show more verbosity
+	 */
+	public verbose() {
+		this._verbose = true;
+		return this;
+	}
+
+	/**
+	 * --version/-V:
+	 *
+	 * show version
+	 */
+	public version() {
+		this._version = true;
 		return this;
 	}
 }

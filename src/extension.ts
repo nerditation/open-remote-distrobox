@@ -50,6 +50,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.delete", delete_command)
+	);
+
+	context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
 			async resolve(authority, _context) {
 				console.log(`resolving ${authority}`);
@@ -292,7 +296,7 @@ async function create_command() {
 	const list_compatibile_images = async (cmd: dbx.MainCommandBuilder): Promise<string[]> => {
 		const { stdout } = await cmd.create().compatibility().exec();
 		return stdout.split('\n').map(s => s.trim()).filter(s => s != "");
-	}
+	};
 	let image = await vscode.window.showQuickPick(list_compatibile_images(cmd), {
 		ignoreFocusOut: true,
 		title: "compatible image",
@@ -525,5 +529,124 @@ ${stderr}
 			message: "running initial setup for the new distrobox, this may take some time..."
 		});
 		terminal.show(true);
+	}
+}
+
+async function delete_command(name?: string) {
+	if (!name) {
+		name = await vscode.window.showQuickPick(list_guest_distros());
+	}
+	if (!name) {
+		return;
+	}
+	if ("Yes" != await vscode.window.showQuickPick(
+		[
+			"No",
+			"Yes",
+		],
+		{
+			title: "WARNING",
+			placeHolder: `are you sure you want to delete the distrobox guest "${name}"?`,
+		}
+	)) {
+		return;
+	}
+	const confirmation = await vscode.window.showInputBox({
+		title: "manual confirmation",
+		placeHolder: "any typo will cancel",
+		prompt: `please type verbatim: I want to delete "${name}"`,
+	});
+	if (confirmation != `I want to delete "${name}"`) {
+		vscode.window.showInformationMessage("delete operation cancelled");
+		return;
+	}
+	const builder = (await dbx.MainCommandBuilder.auto()).rm(name);
+
+	const pick = (label: string, detail: string): vscode.QuickPickItem => {
+		return {
+			label,
+			detail,
+			alwaysShow: true,
+		};
+	};
+
+	const flag_picks = await vscode.window.showQuickPick(
+		[
+			pick("force", "force deletion"),
+			pick("remove home", "remove the mounted hoe if it differs from the host user's one"),
+			pick("verbose", "show more verbosity"),
+		],
+		{
+			canPickMany: true,
+			title: "flags",
+			placeHolder: "select the flags you want to set",
+		}
+	);
+	if (!flag_picks) {
+		return;
+	}
+	const flags = new Set(flag_picks.map(item => item.label));
+	if (flags.has("force")) {
+		builder.force();
+	}
+	if (flags.has("remove home")) {
+		builder.rm_home();
+	}
+	if (flags.has("verbose")) {
+		builder.verbose();
+	}
+	if ("Yes, Please Delete It" != await vscode.window.showWarningMessage(
+		"FINAL CONFIRMAIION",
+		{
+			modal: true,
+			detail: "this is your LAST CHANCE to cancel!\n\nare you really sure you want to delete it?",
+		},
+		"Yes, Please Delete It"
+	)) {
+		return;
+	}
+
+	const { stdout, stderr, exit_code } = await builder.exec();
+
+	let show_detail;
+	if (exit_code) {
+		show_detail = await vscode.window.showErrorMessage(
+			"error running command `distrobox rm`",
+			"show detail"
+		);
+	} else {
+		show_detail = await vscode.window.showInformationMessage(
+			"command `distrobox rm` run successfully",
+			"show detail"
+		);
+	}
+	if (show_detail) {
+		const detail = `
+command:
+
+\`\`\`
+${builder.build().join(' ')}
+\`\`\`
+
+exit code: ${exit_code ?? 0}
+
+stdout:
+
+\`\`\`console
+${stdout}
+\`\`\`
+
+stderr:
+
+\`\`\`console
+${stderr}
+\`\`\`
+`;
+
+		const doc = await vscode.workspace.openTextDocument({
+			language: "markdown",
+			content: detail,
+		});
+		await vscode.window.showTextDocument(doc);
 	}
 }

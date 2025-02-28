@@ -69,6 +69,12 @@
 				"title": "Create a New Distrobox Guest Container",
 				"category": "Distrobox",
 				"icon": "$(plus)"
+			},
+			{
+				"command": "open-remote-distrobox.delete",
+				"title": "Delete a Distrobox Guest Container",
+				"category": "Distrobox",
+				"icon": "$(trash)"
 			}
 		],
 		"views": {
@@ -118,6 +124,11 @@
 				},
 				{
 					"command": "open-remote-distrobox.create",
+					"when": "view == distrobox.guests",
+					"group": "navigation"
+				},
+				{
+					"command": "open-remote-distrobox.delete",
 					"when": "view == distrobox.guests",
 					"group": "navigation"
 				}
