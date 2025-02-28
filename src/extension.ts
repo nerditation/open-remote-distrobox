@@ -462,19 +462,17 @@ async function create_command() {
 			builder.unshare_process();
 		}
 	}
-	if ("Yes" != await vscode.window.showQuickPick(
-		[
-			"No",
-			"Yes",
-		],
+	if ("Continue" != await vscode.window.showWarningMessage(
+		"FINAL CONFIRMAIION",
 		{
-			ignoreFocusOut: true,
-			title: "final confirmation",
-			placeHolder: "last chance to cancel! do you want to continue?"
-		}
+			modal: true,
+			detail: "this is your last to cancel!\n\ncontinue to create the distrobox?",
+		},
+		"Continue"
 	)) {
 		return;
 	}
+
 	const { stdout, stderr, exit_code } = await builder.exec();
 	let show_detail;
 	if (exit_code) {
