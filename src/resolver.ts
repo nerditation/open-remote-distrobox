@@ -126,17 +126,23 @@ export class DistroboxResolver {
 	 */
 	public async download_server_tarball(): Promise<Uint8Array[]> {
 		const { os, arch } = this;
-		const downloader = await fetch(server_download_url(os, arch));
-		if (downloader.status != 200) {
-			throw `${downloader.status} ${server_download_url(os, arch)}`;
-		}
-		// TODO: what if server didn't send `Content-Length` header?
-		const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
-		const buffer: Uint8Array[] = [];
-		await vscode.window.withProgress({
+		return vscode.window.withProgress({
 			location: vscode.ProgressLocation.Notification,
 			title: "downloading vscodium remote server",
 		}, async (progress, candel) => {
+			progress.report({
+				message: "connecting to server..."
+			});
+			const downloader = await fetch(server_download_url(os, arch));
+			if (downloader.status != 200) {
+				throw `${downloader.status} ${server_download_url(os, arch)}`;
+			}
+			// TODO: what if server didn't send `Content-Length` header?
+			const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
+			progress.report({
+				message: "transferring data..."
+			});
+			const buffer: Uint8Array[] = [];
 			for await (const chunk of downloader.body!) {
 				const bytes = chunk as Uint8Array;
 				progress.report({
@@ -144,9 +150,9 @@ export class DistroboxResolver {
 				});
 				buffer.push(bytes);
 			}
+			console.log("download successful");
+			return buffer;
 		});
-		console.log("download successful");
-		return buffer;
 	}
 
 	/**

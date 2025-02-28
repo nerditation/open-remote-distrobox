@@ -473,7 +473,19 @@ async function create_command() {
 		return;
 	}
 
-	const { stdout, stderr, exit_code } = await builder.exec();
+	const { stdout, stderr, exit_code } = await vscode.window.withProgress(
+		{
+			location: vscode.ProgressLocation.Notification,
+			cancellable: false,
+		},
+		async (progress) => {
+			progress.report({
+				message: "this may take a while if the image needs to be pulled from servers..."
+			})
+			const result = await builder.exec();
+			return result;
+		}
+	);
 	let show_detail;
 	if (exit_code) {
 		show_detail = await vscode.window.showErrorMessage(
