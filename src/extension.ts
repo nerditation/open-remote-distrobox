@@ -54,6 +54,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand("open-remote-distrobox.clear-crashed-session", clear_command)
+	);
+
+	context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
 			async resolve(authority, _context) {
 				console.log(`resolving ${authority}`);
@@ -659,4 +663,22 @@ ${stderr}
 		});
 		await vscode.window.showTextDocument(doc);
 	}
+}
+
+async function clear_command(name?: string) {
+	const cmd = await dbx.MainCommandBuilder.auto();
+	if (!name) {
+		const selected = await vscode.window.showQuickPick(
+			list_guest_distros(),
+			{
+				canPickMany: false
+			}
+		);
+		if (!selected) {
+			return;
+		}
+		name = selected;
+	}
+	const resolver = await DistroboxResolver.for_guest_distro(cmd, name);
+	await resolver.clear_session_files();
 }

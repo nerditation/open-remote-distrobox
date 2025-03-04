@@ -357,6 +357,40 @@ export class DistroboxResolver {
 			return new_port;
 		}
 	}
+
+	/**
+	 * clear_session_files
+	 *
+	 * if the server was not properly shutdown, you might have problems to start
+	 * new server sessions. this method tries to clean up a potential crashed
+	 * session.
+	 */
+	public async clear_session_files() {
+		const { cmd, name, os, arch } = this;
+		await cmd.enter(name, "bash").pipe(
+			`
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
+			LOCK_FILE=$RUN_DIR/lock
+			COUNT_FILE=$RUN_DIR/count
+			PORT_FILE=$RUN_DIR/port
+			PID_FILE=$RUN_DIR/pid
+
+			# open lock file
+			exec 200> $LOCK_FILE
+
+			# enter critical section
+			flock -x 200
+
+			kill $(ps --ppid $(cat $PID_FILE) -o pid=)
+			kill $(cat $PID_FILE)
+			rm -f $PORT_FILE $PID_FILE $COUNT_FILE
+			`,
+			{
+				detached: true,
+			}
+		);
+
+	}
 }
 
 function linux_arch_to_nodejs_arch(arch: string): string {

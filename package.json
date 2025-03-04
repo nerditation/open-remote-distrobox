@@ -75,6 +75,13 @@
 				"title": "Delete a Distrobox Guest Container",
 				"category": "Distrobox",
 				"icon": "$(trash)"
+			},
+			{
+				"command": "open-remote-distrobox.clear-crashed-session",
+				"shortTitle": "Clear Files from Previously Crashed Session",
+				"title": "Run This Command If a Previous Session was Not Properly Shutdown and You Cannot Open a New Session",
+				"category": "Distrobox",
+				"icon": "$(clear-all)"
 			}
 		],
 		"views": {
