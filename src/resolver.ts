@@ -256,10 +256,17 @@ export class DistroboxResolver {
 			flock -x 200
 
 			if [[ -f $PORT_FILE ]]; then
-				count=$(cat $COUNT_FILE)
-				count=$(($count + 1))
-				echo $count > $COUNT_FILE
-				cat $PORT_FILE
+				if [[ -z "$(ss -tln | grep :$(cat $PORT_FILE))" ]]; then
+					kill $(ps --ppid $(cat $PID_FILE) -o pid=)
+					kill $(cat $PID_FILE)
+					rm -f $PORT_FILE $PID_FILE $COUNT_FILE
+					echo STALE
+				else
+					count=$(cat $COUNT_FILE)
+					count=$(($count + 1))
+					echo $count > $COUNT_FILE
+					cat $PORT_FILE
+				fi
 			else
 				echo NOT RUNNING;
 			fi
