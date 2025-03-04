@@ -573,7 +573,6 @@ async function delete_command(name?: string) {
 		vscode.window.showInformationMessage("delete operation cancelled");
 		return;
 	}
-	const builder = (await dbx.MainCommandBuilder.auto()).rm(name);
 
 	const pick = (label: string, detail: string): vscode.QuickPickItem => {
 		return {
@@ -598,15 +597,9 @@ async function delete_command(name?: string) {
 	if (!flag_picks) {
 		return;
 	}
-	const flags = new Set(flag_picks.map(item => item.label));
-	if (flags.has("force")) {
-		builder.force();
-	}
-	if (flags.has("remove home")) {
-		builder.rm_home();
-	}
-	if (flags.has("verbose")) {
-		builder.verbose();
+	const flags: Record<string, boolean> = {};
+	for (const flag of flag_picks) {
+		flags[flag.label] = true;
 	}
 	if ("Yes, Please Delete It" != await vscode.window.showWarningMessage(
 		"FINAL CONFIRMAIION",
@@ -619,7 +612,8 @@ async function delete_command(name?: string) {
 		return;
 	}
 
-	const { stdout, stderr, exit_code } = await builder.exec();
+	const manager = await DistroManager.which();
+	const { stdout, stderr, exit_code } = await manager.delete(name, flags);
 
 	let show_detail;
 	if (exit_code) {
@@ -635,12 +629,6 @@ async function delete_command(name?: string) {
 	}
 	if (show_detail) {
 		const detail = `
-command:
-
-\`\`\`
-${builder.build().join(' ')}
-\`\`\`
-
 exit code: ${exit_code ?? 0}
 
 stdout:

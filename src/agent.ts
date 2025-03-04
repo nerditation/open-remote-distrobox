@@ -63,6 +63,27 @@ export class DistroManager {
 		});
 		return this.cached_guest_list;
 	}
+
+	/**
+	 * encapsulate the `distrobox rm` command
+	 */
+	public async delete(name: string, flags?: {
+		force?: boolean,
+		rm_home?: boolean,
+		verbose?: boolean,
+	}): Promise<{ exit_code?: string | number, stdout: string, stderr: string }> {
+		const cmd_builder = this.cmd.rm(name);
+		if (flags?.force) {
+			cmd_builder.force();
+		}
+		if (flags?.rm_home) {
+			cmd_builder.rm_home();
+		}
+		if (flags?.verbose) {
+			cmd_builder.verbose();
+		}
+		return cmd_builder.exec();
+	}
 }
 
 /**
