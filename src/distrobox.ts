@@ -354,22 +354,6 @@ export class ListCommandBuilder extends CommandLineBuilder {
 		}
 		return argv;
 	}
-
-	/**
-	 * `run()` wraps `this.exec` and parse the output into structured data
-	 */
-	public async run(): Promise<Record<string, string>[]> {
-		const { stdout } = await this.exec();
-		const lines = stdout.split("\n").filter(line => line != "");
-		const header = lines.shift()!;
-		const fields = header.split("|").map(s => s.trim().toLowerCase());
-		return lines.map((line) => {
-			function zip<T, U>(ts: T[], us: U[]): [T, U][] {
-				return ts.map((t, i) => [t, us[i]]);
-			}
-			return Object.fromEntries(zip(fields, line.split("|").map(s => s.trim())));
-		});
-	}
 }
 
 /**

@@ -11,6 +11,7 @@ import * as os from 'os';
 
 import * as dbx from './distrobox';
 import { DistroboxResolver, ServerInformation } from './resolver';
+import { DistroManager } from './agent';
 
 // `context.subscriptions` does NOT await async operations
 // have to use the `deactivate()` hook
@@ -183,10 +184,8 @@ function connect_command(window: 'current' | 'new') {
 
 async function reopen_command(name: string) {
 	if (!name) {
-		const current_distro = process.env.CONTAINER_ID ?? "";
-		const cmd = await dbx.MainCommandBuilder.auto();
 		const selected = await vscode.window.showQuickPick(
-			cmd.list().run().then(distros => distros.map(distro => distro["name"]).filter(name => name != current_distro)),
+			list_guest_distros(),
 			{
 				canPickMany: false
 			}
@@ -268,13 +267,13 @@ function map_path(path: string): string {
 }
 
 async function list_guest_distros(): Promise<string[]> {
-	const cmd = await dbx.MainCommandBuilder.auto();
-	const list = await cmd.list().run();
+	const manager = await DistroManager.which();
+	const list = await manager.refresh_guest_list();
 	let current_distro = '';
 	if (process.env.CONTAINER_ID) {
 		current_distro = process.env.CONTAINER_ID;
 	}
-	return list.map(distro => distro["name"]).filter(name => name != current_distro);
+	return list.map(guest => guest.name).filter(name => name != current_distro);
 }
 
 function strip_prefix(subject: string, prefix: string): string {
