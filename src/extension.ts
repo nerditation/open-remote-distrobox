@@ -11,18 +11,20 @@ import * as os from 'os';
 
 import { DistroboxResolver, ServerInformation } from './resolver';
 import { DistroManager } from './agent';
+import { TargetsView } from './view';
 
 // `context.subscriptions` does NOT await async operations
 // have to use the `deactivate()` hook
 const resolved: DistroboxResolver[] = [];
 
 export async function activate(context: vscode.ExtensionContext) {
-	const refresh_requested = new vscode.EventEmitter<void>;
+	const manager = await DistroManager.which();
 
-	context.subscriptions.push(refresh_requested);
+	const targets_view = new TargetsView(context, manager);
+	context.subscriptions.push(targets_view);
 
 	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider("distrobox.guests", new DistroboxLister(refresh_requested.event))
+		vscode.window.registerTreeDataProvider("distrobox.guests", targets_view)
 	);
 
 	context.subscriptions.push(
@@ -38,7 +40,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.refresh", () => refresh_requested.fire())
+		vscode.commands.registerCommand("open-remote-distrobox.refresh", () => targets_view.refresh())
 	);
 
 	context.subscriptions.push(
@@ -130,27 +132,6 @@ export async function deactivate() {
 	console.log("deactivation");
 	for (const resolver of resolved) {
 		await resolver.shutdown_server();
-	}
-}
-
-class DistroboxLister implements vscode.TreeDataProvider<string> {
-
-	constructor(public onDidChangeTreeData: vscode.Event<void>) { }
-
-	getTreeItem(element: string): vscode.TreeItem | Thenable<vscode.TreeItem> {
-		const item = new vscode.TreeItem(element);
-		item.contextValue = "distrobox.guest";
-		// full list of icons: https://code.visualstudio.com/api/references/icons-in-labels
-		// `terminal-linux` is Tux
-		item.iconPath = new vscode.ThemeIcon("terminal-linux");
-		return item;
-	}
-	async getChildren(element?: string | undefined): Promise<string[]> {
-		if (element) {
-			return [];
-		} else {
-			return list_guest_distros();
-		}
 	}
 }
 
