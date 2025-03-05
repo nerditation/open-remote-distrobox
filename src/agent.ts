@@ -6,10 +6,11 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import * as cp from "child_process";
+import * as vscode from "vscode";
 
 import which = require("which");
 
-import { MainCommandBuilder } from "./distrobox";
+import { EnterCommandBuilder, MainCommandBuilder } from "./distrobox";
 
 /**
  * @module agent
@@ -17,6 +18,13 @@ import { MainCommandBuilder } from "./distrobox";
  * wrapper over "raw" distrobox command line builder
  *
  * this module sits in between vscodium API and distrobox abstraction layer
+ *
+ * this module abstracts away the `distrobox` specific details.
+ *
+ * ideally, the resolver should not depends on `distrobox` directly, and maybe
+ * this can be extended to support general container managers besides distrbox,
+ * possibly even implement the `connected-container` remote authority by the
+ * microsoft devcontainers extension.
  */
 
 
@@ -59,7 +67,7 @@ export class DistroManager {
 		column_names.every((column, i) => console.assert(column == expected_columns[i]));
 		this.cached_guest_list = lines.map((line) => {
 			const [id, name, status, image] = line.split("|").map(s => s.trim());
-			return new GuestDistro(id, name, status, image);
+			return new GuestDistro(this.cmd.enter(name).no_workdir(), id, name, status, image);
 		});
 		return this.cached_guest_list;
 	}
@@ -190,6 +198,21 @@ export class DistroManager {
 		}
 		return builder.exec();
 	}
+
+	/**
+	 * get a `GuestDistro` by its `name`
+	 */
+	public async get(name: string): Promise<GuestDistro> {
+		let guest = this.cached_guest_list.find(guest => guest.name == name);
+		if (!guest) {
+			await this.refresh_guest_list();
+			guest = this.cached_guest_list.find(guest => guest.name == name);
+		}
+		if (!guest) {
+			throw `distro "${name}" does not exist`;
+		}
+		return guest;
+	}
 }
 
 /**
@@ -197,11 +220,100 @@ export class DistroManager {
  */
 export class GuestDistro {
 	// fields corresponding to the columns of the output of `distrobox list`
+	// TODO:
+	//   the `status` field doesn't update, which is not useful,
+	//   make it private for now. maybe parse it properly in the future
 	constructor(
+		private cmd: EnterCommandBuilder,
 		public readonly id: string,
 		public readonly name: string,
-		public readonly status: string,
+		private readonly status: string,
 		public readonly image: string,
 	) {
+	}
+
+	/**
+	 * wrapper for `distrobox enter` command using `child_process.exec()`
+	 */
+	public async exec(...args: string[]): Promise<{
+		exit_code?: string | number,
+		stdout: string,
+		stderr: string
+	}> {
+		return this.cmd.args(args).exec();
+	}
+
+	/**
+	 * wrapper for `distrobox enter` command using `child_process.spawn()`
+	 */
+	public spawn(opts?: cp.SpawnOptions, ...args: string[]): cp.ChildProcess;
+	public spawn(...args: string[]): cp.ChildProcess;
+	public spawn(...vararg: any[]): cp.ChildProcess {
+		let opts: cp.SpawnOptions | undefined;
+		let args: string[];
+		if (typeof vararg[0] === "object" && vararg[0] != null) {
+			opts = vararg.shift();
+			args = vararg;
+		} else {
+			args = vararg;
+		}
+		return this.cmd.args(args).spawn(opts);
+	}
+
+	/**
+	 * similar to `this.spawn()` but returns a function which acts like a pipe
+	 */
+	public spawn_piped(...args: string[]): (...inputs: any[]) => Promise<string> {
+		const child = this.spawn(
+			{
+				stdio: ["pipe", "pipe", "inherit"]
+			},
+			...args
+		);
+		const output_chunks: Uint8Array[] = [];
+		child.stdout?.on("data", (chunk: Uint8Array) => output_chunks.push(chunk));
+		const child_closed = new Promise<number>((resolve, reject) => {
+			child.on("close", (code, signal) => {
+				if (signal) {
+					reject(signal);
+				} else {
+					resolve(code ?? 0);
+				}
+			});
+		});
+		return async (...inputs: any[]) => {
+			for (const chunk of inputs) {
+				await new Promise<void>((resolve, reject) => {
+					child.stdin?.write(chunk, (error) => {
+						if (error) {
+							reject(error);
+						} else {
+							resolve();
+						}
+					});
+				});
+			}
+			await new Promise<void>((resolve, reject) => child.stdin?.end(resolve));
+			await child_closed;
+			const output = Buffer.concat(output_chunks);
+			const decoder = new TextDecoder("utf8");
+			return decoder.decode(output);
+		};
+	}
+
+	/**
+	 * run the given command in the terminal pane
+	 */
+	public create_terminal(name: string, ...args: string[]) {
+		const argv = this.cmd.args(args).build();
+		const argv0 = argv.shift();
+		const terminal = vscode.window.createTerminal({
+			name,
+			shellPath: argv0,
+			shellArgs: argv,
+			isTransient: true,
+			message: `this is a terminal for the guest distro "${this.name}"`
+		});
+		return terminal;
 	}
 }

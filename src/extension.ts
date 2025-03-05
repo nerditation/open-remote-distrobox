@@ -9,7 +9,6 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
 
-import * as dbx from './distrobox';
 import { DistroboxResolver, ServerInformation } from './resolver';
 import { DistroManager } from './agent';
 
@@ -65,9 +64,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 				const [_remote, guest_name_encoded] = authority.split('+', 2);
 				const guest_name = decodeURIComponent(guest_name_encoded);
-				const cmd = await dbx.MainCommandBuilder.auto();
+				const manager = await DistroManager.which();
+				const guest = await manager.get(guest_name);
 
-				const resolver = await DistroboxResolver.for_guest_distro(cmd, guest_name);
+				const resolver = await DistroboxResolver.for_guest_distro(guest);
 
 				const port = await resolver.resolve_server_port();
 				if (port) {
@@ -469,17 +469,8 @@ ${stderr}
 
 	// TODO: use agent instead of command line builder
 	if (exit_code == undefined) {
-		const cmd = await dbx.MainCommandBuilder.auto();
-		const argv = cmd.enter(name).build();
-		const argv0 = argv.shift();
-		const terminal = vscode.window.createTerminal({
-			name: "distrobox initial setup",
-			shellPath: argv0,
-			shellArgs: argv,
-			isTransient: true,
-			message: "running initial setup for the new distrobox, this may take some time..."
-		});
-		terminal.show(true);
+		const guest = await manager.get(name);
+		guest.create_terminal("distrobox initial setup").show(true);
 	}
 }
 
@@ -591,7 +582,7 @@ ${stderr}
 }
 
 async function clear_command(name?: string) {
-	const cmd = await dbx.MainCommandBuilder.auto();
+	const manager = await DistroManager.which();
 	if (!name) {
 		const selected = await vscode.window.showQuickPick(
 			list_guest_distros(),
@@ -604,6 +595,7 @@ async function clear_command(name?: string) {
 		}
 		name = selected;
 	}
-	const resolver = await DistroboxResolver.for_guest_distro(cmd, name);
+	const guest = await manager.get(name);
+	const resolver = await DistroboxResolver.for_guest_distro(guest);
 	await resolver.clear_session_files();
 }

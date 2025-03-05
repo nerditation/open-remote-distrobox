@@ -20,9 +20,9 @@
  */
 
 import * as vscode from 'vscode';
-import * as dbx from './distrobox';
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 import { arch } from 'os';
+import { DistroManager, GuestDistro } from './agent';
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -30,14 +30,12 @@ import { arch } from 'os';
  * the name is not very descriptive, but I don't know what's better
  */
 export class DistroboxResolver {
-	cmd: dbx.MainCommandBuilder;
-	name: string;
+	guest: GuestDistro;
 	os: string = "linux";
 	arch: string = arch();
 
-	private constructor(cmd: dbx.MainCommandBuilder, name: string) {
-		this.cmd = cmd;
-		this.name = name;
+	private constructor(guest: GuestDistro) {
+		this.guest = guest;
 	}
 
 	/**
@@ -52,9 +50,9 @@ export class DistroboxResolver {
 	 * @param name the name of the guest container
 	 * @returns a promise that resolves to `Self`
 	 */
-	public static async for_guest_distro(cmd: dbx.MainCommandBuilder, name: string): Promise<DistroboxResolver> {
-		const resolver = new DistroboxResolver(cmd, name);
-		const { stdout: ldd_info, stderr: ldd_info_err } = await cmd.enter(name, "ldd", "--version").exec();
+	public static async for_guest_distro(guest: GuestDistro): Promise<DistroboxResolver> {
+		const resolver = new DistroboxResolver(guest);
+		const { stdout: ldd_info, stderr: ldd_info_err } = await guest.exec("ldd", "--version");
 		// `lsb_release` might not be installed on alpine
 		// I just check for the `musl` libc, which is the libc used by `alpine`
 		// I could also check `/etc/os-release` too, but it's good enough for me.
@@ -65,7 +63,7 @@ export class DistroboxResolver {
 		} else if (ldd_info.match(/Free Software Foundation/)) {
 			// glibc's ldd doesn't show the archtecture, need probe further
 			// can't use `uname`, 32 bit guests can run on 64 bit host
-			const { stdout: ldd_info } = await cmd.enter(name, "ldd", "/bin/sh").exec();
+			const { stdout: ldd_info } = await guest.exec("ldd", "/bin/sh");
 			const glibc_ld_path = ldd_info.match(/\/lib(64)?\/ld-linux-(.+).so/)!;
 			resolver.arch = linux_arch_to_nodejs_arch(glibc_ld_path[2]);
 		} else {
@@ -83,40 +81,20 @@ export class DistroboxResolver {
 	 * @param buffer raw bytes (in chunks) of the `gzip` compressed tarball
 	 */
 	public async extract_server_tarball(buffer: Uint8Array[]) {
-		const { cmd, name, os, arch } = this;
+		const { guest, os, arch } = this;
 		const path = server_extract_path(os, arch);
-		await cmd.enter(
-			name,
+		await guest.exec(
 			"mkdir",
 			"-p",
 			`${path}`
-		)
-			.no_workdir()
-			.exec();
-		const tar = cmd.enter(
-			name,
+		);
+		const tar = guest.spawn_piped(
 			"tar",
 			"-xz",
 			"-C",
 			`${path}`
-		)
-			.no_tty()
-			.no_workdir()
-			.spawn({
-				stdio: ['pipe', 'inherit', 'inherit']
-			});
-		for (const chunk of buffer) {
-			await new Promise<void>((resolve, reject) => {
-				tar.stdin?.write(chunk, (err) => {
-					if (err) {
-						reject(err);
-					} else {
-						resolve();
-					}
-				});
-			});
-		}
-		await new Promise<void>((resolve, reject) => tar.stdin?.end(resolve));
+		);
+		await tar(buffer);
 	}
 
 	/**
@@ -164,7 +142,7 @@ export class DistroboxResolver {
 	 * - "ERROR", if failed to launch the server or find the port number
 	 */
 	public async try_start_new_server(): Promise<string> {
-		const { cmd, name, os, arch } = this;
+		const { guest, os, arch } = this;
 		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
 		const export_commands = [];
 		for (const name in env) {
@@ -179,9 +157,9 @@ export class DistroboxResolver {
 			}
 		}
 		console.log("exported env for remote server: ", export_commands);
-		const output = await cmd.enter(name, "bash").pipe(
+		const output = await guest.spawn_piped("bash")(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOG_FILE=$RUN_DIR/log
 			PID_FILE=$RUN_DIR/pid
 			PORT_FILE=$RUN_DIR/port
@@ -230,7 +208,7 @@ export class DistroboxResolver {
 			fi
 			`
 		);
-		return new TextDecoder('utf8').decode(output);
+		return output;
 	}
 
 	/**
@@ -241,10 +219,10 @@ export class DistroboxResolver {
 	 * - "NOT RUNNING"
 	 */
 	public async find_running_server_port(): Promise<string> {
-		const { cmd, name, os, arch } = this;
-		const output = await cmd.enter(name, "bash").pipe(
+		const { guest, os, arch } = this;
+		const output = await guest.spawn_piped("bash")(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOCK_FILE=$RUN_DIR/lock
 			COUNT_FILE=$RUN_DIR/count
 			PORT_FILE=$RUN_DIR/port
@@ -272,15 +250,15 @@ export class DistroboxResolver {
 			fi
 			`
 		);
-		return new TextDecoder('utf8').decode(output);
+		return output;
 	}
 
 	/**
 	 * check if the server is already installed
 	 */
 	public async is_server_installed(): Promise<boolean> {
-		const { cmd, name, os, arch } = this;
-		const output = await cmd.enter(name, "bash").pipe(
+		const { guest, os, arch } = this;
+		const output = await guest.spawn_piped("bash")(
 
 			`
 			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
@@ -291,17 +269,17 @@ export class DistroboxResolver {
 			fi
 			`
 		);
-		return new TextDecoder('utf8').decode(output).trim() == "true";
+		return output.trim() == "true";
 	}
 
 	/**
 	 * shutdown the server, will be called in `extension.deactivate()`
 	 */
 	public async shutdown_server() {
-		const { cmd, name, os, arch } = this;
-		await cmd.enter(name, "bash").pipe(
+		const { guest, os, arch } = this;
+		await guest.spawn_piped("bash")(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOCK_FILE=$RUN_DIR/lock
 			COUNT_FILE=$RUN_DIR/count
 			PORT_FILE=$RUN_DIR/port
@@ -338,7 +316,7 @@ export class DistroboxResolver {
 	 * this is called by `vscode.RemoteAuthorityResolver.resolve()`
 	 */
 	public async resolve_server_port(): Promise<number | undefined> {
-		console.log(`resolving distrobox guest: ${this.name}`);
+		console.log(`resolving distrobox guest: ${this.guest.name}`);
 
 		const running_port = parseInt((await this.find_running_server_port()), 10);
 		if (!isNaN(running_port)) {
@@ -366,10 +344,10 @@ export class DistroboxResolver {
 	 * session.
 	 */
 	public async clear_session_files() {
-		const { cmd, name, os, arch } = this;
-		await cmd.enter(name, "bash").pipe(
+		const { guest, os, arch } = this;
+		await guest.spawn_piped("bash")(
 			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}
+			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOCK_FILE=$RUN_DIR/lock
 			COUNT_FILE=$RUN_DIR/count
 			PORT_FILE=$RUN_DIR/port
@@ -445,10 +423,10 @@ export class ServerInformation implements vscode.TreeDataProvider<string> {
 	}
 
 	static async from(resolver: DistroboxResolver): Promise<ServerInformation> {
-		const { name, os, arch } = resolver;
-		const output = await resolver.cmd.enter(name, "bash").pipe(
+		const { guest, os, arch } = resolver;
+		const output = await guest.spawn_piped("bash")(
 			`
-			RUN_DIR="$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${name}"
+			RUN_DIR="$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}"
 			echo $RUN_DIR
 			echo "$HOME/${server_binary_path(os, arch)}"
 			cat $RUN_DIR/port
@@ -462,10 +440,10 @@ export class ServerInformation implements vscode.TreeDataProvider<string> {
 			server_port,
 			server_pid1,
 			server_pid2,
-		] = new TextDecoder("utf8").decode(output).split('\n');
+		] = output.split('\n');
 
 		return new ServerInformation(
-			name,
+			guest.name,
 			os,
 			arch,
 
