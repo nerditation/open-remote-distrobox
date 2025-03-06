@@ -271,4 +271,47 @@ export class GuestDistro {
 		});
 		return terminal;
 	}
+
+	/**
+	 * run the given script as a bash script. distrobox containers always have
+	 * bash, even for alpine linux.
+	 *
+	 * returns stdout as string, also returns stderr and exit code for debugging
+	 */
+	public run_bash_script(input: string): Promise<{ exit_code?: number, stdout: string, stderr: string }> {
+		const bash = this.spawn({ stdio: "pipe", }, "bash");
+		const stdout_chunks: Buffer[] = [];
+		const stderr_chunks: Buffer[] = [];
+		bash.stdout?.on("data", (chunk) => { stdout_chunks.push(chunk); });
+		bash.stderr?.on("data", (chunk) => { stderr_chunks.push(chunk); });
+		return new Promise((resolve, reject) => {
+			bash.on("close", (exit_code, signal) => {
+				if (signal) {
+					reject({
+						description: "process received signal",
+						signal
+					});
+				} else {
+					const utf8 = new TextDecoder("utf8");
+					resolve({
+						exit_code: exit_code ?? undefined,
+						stdout: utf8.decode(Buffer.concat(stdout_chunks)),
+						stderr: utf8.decode(Buffer.concat(stderr_chunks)),
+					});
+				}
+			});
+			bash.stdin?.end(input);
+		});
+	}
+
+	/**
+	 * run_bash_script_detached
+	 */
+	public async run_bash_script_detached(input: string) {
+		return new Promise<void>((resolve, reject) => {
+			const bash = this.spawn({ stdio: "pipe", detached: true }, "bash");
+			bash.unref();
+			bash.stdin?.end(input, resolve);
+		});
+	}
 }

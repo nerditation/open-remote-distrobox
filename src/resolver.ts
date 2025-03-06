@@ -157,7 +157,7 @@ export class DistroboxResolver {
 			}
 		}
 		console.log("exported env for remote server: ", export_commands);
-		const output = await guest.spawn_piped("bash")(
+		const { stdout: output } = await guest.run_bash_script(
 			`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOG_FILE=$RUN_DIR/log
@@ -220,7 +220,7 @@ export class DistroboxResolver {
 	 */
 	public async find_running_server_port(): Promise<string> {
 		const { guest, os, arch } = this;
-		const output = await guest.spawn_piped("bash")(
+		const { stdout: output } = await guest.run_bash_script(
 			`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOCK_FILE=$RUN_DIR/lock
@@ -258,8 +258,7 @@ export class DistroboxResolver {
 	 */
 	public async is_server_installed(): Promise<boolean> {
 		const { guest, os, arch } = this;
-		const output = await guest.spawn_piped("bash")(
-
+		const { stdout: output } = await guest.run_bash_script(
 			`
 			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
 			if [[ -f $SERVER_FILE ]]; then
@@ -277,7 +276,7 @@ export class DistroboxResolver {
 	 */
 	public async shutdown_server() {
 		const { guest, os, arch } = this;
-		await guest.spawn_piped("bash")(
+		await guest.run_bash_script_detached(
 			`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOCK_FILE=$RUN_DIR/lock
@@ -304,9 +303,6 @@ export class DistroboxResolver {
 				rm -f $PORT_FILE $PID_FILE $COUNT_FILE
 			fi
 			`,
-			{
-				detached: true,
-			}
 		);
 	}
 
@@ -345,7 +341,7 @@ export class DistroboxResolver {
 	 */
 	public async clear_session_files() {
 		const { guest, os, arch } = this;
-		await guest.spawn_piped("bash")(
+		await guest.run_bash_script(
 			`
 			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
 			LOCK_FILE=$RUN_DIR/lock
@@ -363,9 +359,6 @@ export class DistroboxResolver {
 			kill $(cat $PID_FILE)
 			rm -f $PORT_FILE $PID_FILE $COUNT_FILE
 			`,
-			{
-				detached: true,
-			}
 		);
 
 	}
