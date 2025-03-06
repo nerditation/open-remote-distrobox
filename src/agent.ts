@@ -125,7 +125,7 @@ export class DistroManager {
 		column_names.every((column, i) => console.assert(column == expected_columns[i]));
 		this.cached_guest_list = lines.map((line) => {
 			const [id, name, status, image] = line.split("|").map(s => s.trim());
-			return new GuestDistro(this.cmd.enter(name).no_workdir(), id, name, status, image);
+			return new GuestDistro(this.cmd.enter(name).no_tty().no_workdir(), id, name, status, image);
 		});
 		return this.cached_guest_list;
 	}
