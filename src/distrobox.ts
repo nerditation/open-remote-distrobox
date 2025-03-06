@@ -1125,7 +1125,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 }
 
 /**
- * the builder for the `distrobox rm` subcommand
+ * options for the `distrobox rm` subcommand
  *
 ```console
 distrobox version: 1.8.0
@@ -1148,21 +1148,42 @@ Options:
 
 ```
  */
+export interface RmOptions {
+	name: string;
+	all: boolean;
+	force: boolean;
+	rm_home: boolean;
+	root: boolean;
+	help: boolean;
+	verbose: boolean;
+	version: boolean;
+}
+
+/**
+ * the builder for the `distrobox rm` subcommand
+ */
 export class RmCommandBuilder extends CommandLineBuilder {
 	_cmd: MainCommandBuilder;
-	_name: string;
-	_all: boolean = false;
-	_force: boolean = false;
-	_rm_home: boolean = false;
-	_root: boolean = false;
-	_help: boolean = false;
-	_verbose: boolean = false;
-	_version: boolean = false;
+	_options: RmOptions;
+
+	public static default_options(name: string): RmOptions {
+		return {
+			name,
+			all: false,
+			force: false,
+			rm_home: false,
+			root: false,
+			help: false,
+			verbose: false,
+			version: false,
+
+		}
+	}
 
 	constructor(cmd: MainCommandBuilder, name: string) {
 		super();
 		this._cmd = cmd;
-		this._name = name;
+		this._options = RmCommandBuilder.default_options(name);
 	}
 
 	/**
@@ -1170,29 +1191,29 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 */
 	public build(): string[] {
 		const argv = [...this._cmd.argv, "rm"];
-		if (this._all) {
+		if (this._options.all) {
 			argv.push("--all");
 		}
-		if (this._force) {
+		if (this._options.force) {
 			argv.push("--force");
 		}
-		if (this._rm_home) {
+		if (this._options.rm_home) {
 			argv.push("--rm-home");
 		}
-		if (this._root) {
+		if (this._options.root) {
 			argv.push("--root");
 		}
-		if (this._help) {
+		if (this._options.help) {
 			argv.push("--help");
 		}
-		if (this._verbose) {
+		if (this._options.verbose) {
 			argv.push("--verbose");
 		}
-		if (this._version) {
+		if (this._options.version) {
 			argv.push("--version");
 		}
 
-		argv.push(this._name);
+		argv.push(this._options.name);
 
 		return argv;
 	}
@@ -1203,7 +1224,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * delete all distroboxes
 	 */
 	public all() {
-		this._all = true;
+		this._options.all = true;
 		return this;
 	}
 
@@ -1213,7 +1234,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * force deletion
 	 */
 	public force() {
-		this._force = true;
+		this._options.force = true;
 		return this;
 	}
 
@@ -1223,7 +1244,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * remove the mounted home if it differs from the host user's one
 	 */
 	public rm_home() {
-		this._rm_home = true;
+		this._options.rm_home = true;
 		return this;
 	}
 
@@ -1235,7 +1256,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
 	 */
 	public root() {
-		this._root = true;
+		this._options.root = true;
 		return this;
 	}
 
@@ -1245,7 +1266,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * show this message
 	 */
 	public help() {
-		this._help = true;
+		this._options.help = true;
 		return this;
 	}
 
@@ -1255,7 +1276,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * show more verbosity
 	 */
 	public verbose() {
-		this._verbose = true;
+		this._options.verbose = true;
 		return this;
 	}
 
@@ -1265,7 +1286,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * show version
 	 */
 	public version() {
-		this._version = true;
+		this._options.version = true;
 		return this;
 	}
 }
