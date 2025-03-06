@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import * as os from 'os';
 
 import { DistroboxResolver, ServerInformation } from './resolver';
-import { DistroManager } from './agent';
+import { DistroManager, GuestDistro } from './agent';
 import { TargetsView } from './view';
 import { create_command, delete_command } from './extras';
 
@@ -137,8 +137,13 @@ export async function deactivate() {
 }
 
 function connect_command(window: 'current' | 'new') {
-	return async (name?: string) => {
-		if (!name) {
+	return async (guest?: string | GuestDistro) => {
+		let name;
+		if (guest instanceof GuestDistro) {
+			name = guest.name;
+		} else if (guest) {
+			name = guest;
+		} else {
 			const selected = await vscode.window.showQuickPick(
 				await list_guest_distros(),
 				{
@@ -164,10 +169,15 @@ function connect_command(window: 'current' | 'new') {
 	};
 }
 
-async function reopen_command(name: string) {
-	if (!name) {
+async function reopen_command(guest: string | GuestDistro) {
+	let name;
+	if (guest instanceof GuestDistro) {
+		name = guest.name;
+	} else if (guest) {
+		name = guest;
+	} else {
 		const selected = await vscode.window.showQuickPick(
-			list_guest_distros(),
+			await list_guest_distros(),
 			{
 				canPickMany: false
 			}
