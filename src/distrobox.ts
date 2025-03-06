@@ -376,7 +376,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 }
 
 /**
- * the builder for the `distrobox enter` subcommand
+ * options for the `distrobox enter` subcommand
  *
 ```console
 distrobox version: 1.8.0.1
@@ -406,25 +406,46 @@ Options:
 		  --version/-V:           show version
 ```
  */
+export interface EnterOptions {
+	name?: string;
+	clean_path: boolean;
+	no_tty: boolean;
+	no_workdir: boolean;
+	additional_flags?: string;
+	help: boolean;
+	root: boolean;
+	dry_run: boolean;
+	verbose: boolean;
+	version: boolean;
+}
+
+/**
+ * the builder for the `distrobox enter` subcommand
+ */
 export class EnterCommandBuilder extends CommandLineBuilder {
 	_command: MainCommandBuilder;
-	_name?: string;
-	_clean_path: boolean = false;
-	_no_tty: boolean = false;
-	_no_workdir: boolean = false;
-	_additional_flags?: string;
-	_help: boolean = false;
-	_root: boolean = false;
-	_dry_run: boolean = false;
-	_verbose: boolean = false;
-	_version: boolean = false;
-
+	_options: EnterOptions;
 	_args: string[] = [];
+
+	public static default_options(name?: string): EnterOptions {
+		return {
+			name,
+			clean_path: false,
+			no_tty: false,
+			no_workdir: false,
+			additional_flags: undefined,
+			help: false,
+			root: false,
+			dry_run: false,
+			verbose: false,
+			version: false,
+		}
+	}
 
 	constructor(command: MainCommandBuilder, name?: string, ...args: string[]) {
 		super();
 		this._command = command;
-		this._name = name;
+		this._options = EnterCommandBuilder.default_options(name);
 		this._args = args;
 	}
 
@@ -432,7 +453,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --name/-n
 	 */
 	public name(name: string): this {
-		this._name = name;
+		this._options.name = name;
 		return this;
 	}
 
@@ -440,7 +461,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --clean-path
 	 */
 	public clean_path(): this {
-		this._clean_path = true;
+		this._options.clean_path = true;
 		return this;
 	}
 
@@ -448,7 +469,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --no-tty/-T
 	 */
 	public no_tty(): this {
-		this._no_tty = true;
+		this._options.no_tty = true;
 		return this;
 	}
 
@@ -456,7 +477,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --no-workdir/-nw
 	 */
 	public no_workdir(): this {
-		this._no_workdir = true;
+		this._options.no_workdir = true;
 		return this;
 	}
 
@@ -464,7 +485,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --additional-flags/-a
 	 */
 	public additional_flags(flags: string): this {
-		this._additional_flags = flags;
+		this._options.additional_flags = flags;
 		return this;
 	}
 
@@ -472,7 +493,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --help/-h
 	 */
 	public help(): this {
-		this._help = true;
+		this._options.help = true;
 		return this;
 	}
 
@@ -480,7 +501,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --root/-r
 	 */
 	public root(): this {
-		this._root = true;
+		this._options.root = true;
 		return this;
 	}
 
@@ -488,7 +509,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --dry-run/-d
 	 */
 	public dry_run() {
-		this._dry_run = true;
+		this._options.dry_run = true;
 		return this;
 	}
 
@@ -496,7 +517,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --verbose/-v
 	 */
 	public verbose() {
-		this._verbose = true;
+		this._options.verbose = true;
 		return this;
 	}
 
@@ -504,7 +525,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * --version/-V
 	 */
 	public version() {
-		this._version = true;
+		this._options.version = true;
 		return this;
 	}
 
@@ -521,36 +542,36 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 */
 	public build() {
 		const argv = [...this._command.argv, "enter"];
-		if (this._name) {
+		if (this._options.name) {
 			argv.push("--name");
-			argv.push(this._name);
+			argv.push(this._options.name);
 		}
-		if (this._clean_path) {
+		if (this._options.clean_path) {
 			argv.push("--clean-path");
 		}
-		if (this._no_tty) {
+		if (this._options.no_tty) {
 			argv.push("--no-tty");
 		}
-		if (this._no_workdir) {
+		if (this._options.no_workdir) {
 			argv.push("--no-workdir");
 		}
-		if (this._additional_flags) {
+		if (this._options.additional_flags) {
 			argv.push("--additional-flags");
-			argv.push(this._additional_flags);
+			argv.push(this._options.additional_flags);
 		}
-		if (this._help) {
+		if (this._options.help) {
 			argv.push("--help");
 		}
-		if (this._root) {
+		if (this._options.root) {
 			argv.push("--root");
 		}
-		if (this._dry_run) {
+		if (this._options.dry_run) {
 			argv.push("--dry-run");
 		}
-		if (this._verbose) {
+		if (this._options.verbose) {
 			argv.push("--verbose");
 		}
-		if (this._version) {
+		if (this._options.version) {
 			argv.push("--version");
 		}
 
