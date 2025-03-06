@@ -586,7 +586,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 }
 
 /**
- * the builder for the `distrobox create` command
+ * options for the `distrobox create` command
  *
 ```console
 distrobox version: 1.8.0
@@ -653,45 +653,89 @@ Compatibility:
 		  or consult the documentation page on: https://github.com/89luca89/distrobox/blob/main/docs/compatibility.md
 ```
  */
+export interface CreateOptions {
+	name?: string;
+	image?: string;
+	hostname?: string;
+	pull: boolean;
+	yes: boolean;
+	root: boolean;
+	clone?: string;
+	home?: string;
+
+	volume?: string;
+	additional_flags: string[];
+	additional_packages: string[];
+	init_hooks?: string;
+	pre_init_hooks?: string;
+	init: boolean;
+	nvidia: boolean;
+
+	unshare_devsys: boolean;
+	unshare_groups: boolean;
+	unshare_ipc: boolean;
+	unshare_netns: boolean;
+	unshare_process: boolean;
+	unshare_all: boolean;
+
+	compatibility: boolean;
+	help: boolean;
+	no_entry: boolean;
+	dry_run: boolean;
+	verbose: boolean;
+	version: boolean;
+
+	absolutely_disable_root_password_i_am_really_positively_sure: boolean;
+}
+
+/**
+ * the builder for the `distrobox create` command
+ */
 export class CreateCommandBuilder extends CommandLineBuilder {
 	_cmd: MainCommandBuilder;
+	_options: CreateOptions;
 
-	_image: string | undefined;
-	_name: string | undefined;
-	_hostname: string | undefined;
-	_pull: boolean = false;
-	_yes: boolean = false;
-	_root: boolean = false;
-	_clone: string | undefined;
-	_home: string | undefined;
+	public static default_options(): CreateOptions {
+		return {
+			//name?: string;
+			//image?: string;
+			//hostname?: string;
+			pull: false,
+			yes: false,
+			root: false,
+			//clone?: string;
+			//home?: string;
 
-	_volume: string | undefined;
-	_additional_flags: string[] = [];
-	_additional_packages: string[] = [];
-	_init_hooks: string | undefined;
-	_pre_init_hooks: string | undefined;
-	_init: boolean = false;
-	_nvidia: boolean = false;
+			//volume?: string;
+			additional_flags: [],
+			additional_packages: [],
+			//init_hooks?: string;
+			//pre_init_hooks?: string;
+			init: false,
+			nvidia: false,
 
-	_unshare_devsys: boolean = false;
-	_unshare_groups: boolean = false;
-	_unshare_ipc: boolean = false;
-	_unshare_netns: boolean = false;
-	_unshare_process: boolean = false;
-	_unshare_all: boolean = false;
+			unshare_devsys: false,
+			unshare_groups: false,
+			unshare_ipc: false,
+			unshare_netns: false,
+			unshare_process: false,
+			unshare_all: false,
 
-	_compatibility: boolean = false;
-	_help: boolean = false;
-	_no_entry: boolean = false;
-	_dry_run: boolean = false;
-	_verbose: boolean = false;
-	_version: boolean = false;
+			compatibility: false,
+			help: false,
+			no_entry: false,
+			dry_run: false,
+			verbose: false,
+			version: false,
 
-	_absolutely_disable_root_password_i_am_really_positively_sure: boolean = false;
+			absolutely_disable_root_password_i_am_really_positively_sure: false,
 
+		}
+	}
 	constructor(cmd: MainCommandBuilder) {
 		super();
 		this._cmd = cmd;
+		this._options = CreateCommandBuilder.default_options();
 	}
 
 	/**
@@ -700,88 +744,88 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	public build(): string[] {
 		const argv = [...this._cmd.argv, "create"];
 
-		if (this._image) {
-			argv.push("--image", this._image);
+		if (this._options.image) {
+			argv.push("--image", this._options.image);
 		}
-		if (this._name) {
-			argv.push("--name", this._name);
+		if (this._options.name) {
+			argv.push("--name", this._options.name);
 		}
-		if (this._hostname) {
-			argv.push("--hostname", this._hostname);
+		if (this._options.hostname) {
+			argv.push("--hostname", this._options.hostname);
 		}
-		if (this._pull) {
+		if (this._options.pull) {
 			argv.push("--pull");
 		}
-		if (this._yes) {
+		if (this._options.yes) {
 			argv.push("--yes");
 		}
-		if (this._root) {
+		if (this._options.root) {
 			argv.push("--root");
 		}
-		if (this._clone) {
-			argv.push("--clone", this._clone);
+		if (this._options.clone) {
+			argv.push("--clone", this._options.clone);
 		}
-		if (this._home) {
-			argv.push("--home", this._home);
+		if (this._options.home) {
+			argv.push("--home", this._options.home);
 		}
-		if (this._volume) {
-			argv.push("--volume", this._volume);
+		if (this._options.volume) {
+			argv.push("--volume", this._options.volume);
 		}
-		if (this._additional_flags.length > 0) {
-			argv.push("--additional-flags", this._additional_flags.join(' '));
+		if (this._options.additional_flags.length > 0) {
+			argv.push("--additional-flags", this._options.additional_flags.join(' '));
 		}
-		if (this._additional_packages.length > 0) {
-			argv.push("--additional-packages", this._additional_packages.join(' '));
+		if (this._options.additional_packages.length > 0) {
+			argv.push("--additional-packages", this._options.additional_packages.join(' '));
 		}
-		if (this._init_hooks) {
-			argv.push("--init-hooks", this._init_hooks);
+		if (this._options.init_hooks) {
+			argv.push("--init-hooks", this._options.init_hooks);
 		}
-		if (this._pre_init_hooks) {
-			argv.push("--pre-init-hooks", this._pre_init_hooks);
+		if (this._options.pre_init_hooks) {
+			argv.push("--pre-init-hooks", this._options.pre_init_hooks);
 		}
-		if (this._init) {
+		if (this._options.init) {
 			argv.push("--init");
 		}
-		if (this._nvidia) {
+		if (this._options.nvidia) {
 			argv.push("--nvidia");
 		}
-		if (this._unshare_devsys) {
+		if (this._options.unshare_devsys) {
 			argv.push("--unshare-devsys");
 		}
-		if (this._unshare_groups) {
+		if (this._options.unshare_groups) {
 			argv.push("--unshare-groups");
 		}
-		if (this._unshare_ipc) {
+		if (this._options.unshare_ipc) {
 			argv.push("--unshare-ipc");
 		}
-		if (this._unshare_netns) {
+		if (this._options.unshare_netns) {
 			argv.push("--unshare-netns");
 		}
-		if (this._unshare_process) {
+		if (this._options.unshare_process) {
 			argv.push("--unshare-process");
 		}
-		if (this._unshare_all) {
+		if (this._options.unshare_all) {
 			argv.push("--unshare-all");
 		}
-		if (this._compatibility) {
+		if (this._options.compatibility) {
 			argv.push("--compatibility");
 		}
-		if (this._help) {
+		if (this._options.help) {
 			argv.push("--help");
 		}
-		if (this._no_entry) {
+		if (this._options.no_entry) {
 			argv.push("--no-entry");
 		}
-		if (this._dry_run) {
+		if (this._options.dry_run) {
 			argv.push("--dry-run");
 		}
-		if (this._verbose) {
+		if (this._options.verbose) {
 			argv.push("--verbose");
 		}
-		if (this._version) {
+		if (this._options.version) {
 			argv.push("--version");
 		}
-		if (this._absolutely_disable_root_password_i_am_really_positively_sure) {
+		if (this._options.absolutely_disable_root_password_i_am_really_positively_sure) {
 			argv.push("--absolutely-disable-root-password-i-am-really-positively-sure");
 		}
 		return argv;
@@ -794,7 +838,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * default: registry.opensuse.org/opensuse/distrobox:latest
 	 */
 	public image(image: string) {
-		this._image = image;
+		this._options.image = image;
 		return this;
 	}
 
@@ -805,7 +849,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * default: my-distrobox
 	 */
 	public name(name: string) {
-		this._name = name;
+		this._options.name = name;
 		return this;
 	}
 
@@ -816,7 +860,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * default: localhost.localdomain
 	 */
 	public hostname(hostname: string) {
-		this._hostname = hostname;
+		this._options.hostname = hostname;
 		return this;
 	}
 
@@ -826,7 +870,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * pull the image even if it exists locally (implies --yes)
 	 */
 	public pull() {
-		this._pull = true;
+		this._options.pull = true;
 		return this;
 	}
 
@@ -836,7 +880,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * non-interactive, pull images without asking
 	 */
 	public yes() {
-		this._yes = true;
+		this._options.yes = true;
 		return this;
 	}
 
@@ -848,7 +892,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * specify it through the DBX_SUDO_PROGRAM env variable, or 'distrobox_sudo_program' config variable)
 	 */
 	public root() {
-		this._root = true;
+		this._options.root = true;
 		return this;
 	}
 
@@ -861,7 +905,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * of the same environment.
 	 */
 	public clone(clone: string) {
-		this._clone = clone;
+		this._options.clone = clone;
 		return this;
 	}
 
@@ -871,7 +915,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * select a custom HOME directory for the container. Useful to avoid host's home littering with temp files.
 	 */
 	public home(home: string) {
-		this._home = home;
+		this._options.home = home;
 		return this;
 	}
 
@@ -881,7 +925,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * additional volumes to add to the container
 	 */
 	public volume(volume: string) {
-		this._volume = volume;
+		this._options.volume = volume;
 		return this;
 	}
 
@@ -891,7 +935,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * additional flags to pass to the container manager command
 	 */
 	public additional_flags(...flags: string[]) {
-		this._additional_flags = flags;
+		this._options.additional_flags = flags;
 		return this;
 	}
 
@@ -901,7 +945,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * additional packages to install during initial container setup
 	 */
 	public additional_packages(...packages: string[]) {
-		this._additional_packages = packages;
+		this._options.additional_packages = packages;
 		return this;
 	}
 
@@ -911,7 +955,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * additional commands to execute at the end of container initialization
 	 */
 	public init_hooks(hooks: string) {
-		this._init_hooks = hooks;
+		this._options.init_hooks = hooks;
 		return this;
 	}
 
@@ -921,7 +965,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * additional commands to execute at the start of container initialization
 	 */
 	public pre_init_hooks(hooks: string) {
-		this._pre_init_hooks = hooks;
+		this._options.pre_init_hooks = hooks;
 		return this;
 	}
 
@@ -935,7 +979,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * https://github.com/89luca89/distrobox/blob/main/docs/useful_tips.md#using-init-system-inside-a-distrobox
 	 */
 	public init() {
-		this._init = true;
+		this._options.init = true;
 		return this;
 	}
 
@@ -945,7 +989,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * try to integrate host's nVidia drivers in the guest
 	 */
 	public nvidia() {
-		this._nvidia = true;
+		this._options.nvidia = true;
 		return this;
 	}
 
@@ -955,7 +999,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * do not share host devices and sysfs dirs from host
 	 */
 	public unshare_devsys() {
-		this._unshare_devsys = true;
+		this._options.unshare_devsys = true;
 		return this;
 	}
 
@@ -965,7 +1009,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * do not forward user's additional groups into the container
 	 */
 	public unshare_groups() {
-		this._unshare_groups = true;
+		this._options.unshare_groups = true;
 		return this;
 	}
 
@@ -975,7 +1019,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * do not share ipc namespace with host
 	 */
 	public unshare_ipc() {
-		this._unshare_ipc = true;
+		this._options.unshare_ipc = true;
 		return this;
 	}
 
@@ -985,7 +1029,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * do not share the net namespace with host
 	 */
 	public unshare_netns() {
-		this._unshare_netns = true;
+		this._options.unshare_netns = true;
 		return this;
 	}
 
@@ -995,7 +1039,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * do not share process namespace with host
 	 */
 	public unshare_process() {
-		this._unshare_process = true;
+		this._options.unshare_process = true;
 		return this;
 	}
 
@@ -1005,7 +1049,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * activate all the unshare flags below
 	 */
 	public unshare_all() {
-		this._unshare_all = true;
+		this._options.unshare_all = true;
 		return this;
 	}
 
@@ -1015,7 +1059,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * show list of compatible images
 	 */
 	public compatibility() {
-		this._compatibility = true;
+		this._options.compatibility = true;
 		return this;
 	}
 
@@ -1025,7 +1069,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * show this message
 	 */
 	public help() {
-		this._help = true;
+		this._options.help = true;
 		return this;
 	}
 
@@ -1035,7 +1079,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * do not generate a container entry in the application list
 	 */
 	public no_entry() {
-		this._no_entry = true;
+		this._options.no_entry = true;
 		return this;
 	}
 
@@ -1045,7 +1089,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * only print the container manager command generated
 	 */
 	public dry_run() {
-		this._dry_run = true;
+		this._options.dry_run = true;
 		return this;
 	}
 
@@ -1055,7 +1099,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * show more verbosity
 	 */
 	public verbose() {
-		this._verbose = true;
+		this._options.verbose = true;
 		return this;
 	}
 
@@ -1065,7 +1109,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * show version
 	 */
 	public version() {
-		this._version = true;
+		this._options.version = true;
 		return this;
 	}
 
@@ -1075,7 +1119,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * ⚠ ⚠  when setting up a rootful distrobox, this will skip user password setup, leaving it blank. ⚠ ⚠
 	 */
 	public absolutely_disable_root_password_i_am_really_positively_sure() {
-		this._absolutely_disable_root_password_i_am_really_positively_sure = true;
+		this._options.absolutely_disable_root_password_i_am_really_positively_sure = true;
 		return this;
 	}
 }
