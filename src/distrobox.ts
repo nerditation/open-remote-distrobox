@@ -291,7 +291,7 @@ export interface ListOptions {
  * the builder for the `distrobox list` subcommand, see {@link ListOptions}
  */
 export class ListCommandBuilder extends CommandLineBuilder {
-	_command: MainCommandBuilder;
+	_prefix: MainCommandBuilder;
 	_options: ListOptions;
 
 	public static default_options(): ListOptions {
@@ -307,7 +307,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 
 	constructor(command: MainCommandBuilder) {
 		super();
-		this._command = command;
+		this._prefix = command;
 		this._options = ListCommandBuilder.default_options();
 	}
 
@@ -355,7 +355,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 * build
 	 */
 	public build(): string[] {
-		const argv = [...this._command.argv, "list"];
+		const argv = [...this._prefix.build(), "list"];
 		if (this._options.help) {
 			argv.push("--help");
 		}
@@ -423,7 +423,7 @@ export interface EnterOptions {
  * the builder for the `distrobox enter` subcommand
  */
 export class EnterCommandBuilder extends CommandLineBuilder {
-	_command: MainCommandBuilder;
+	_prefix: MainCommandBuilder;
 	_options: EnterOptions;
 	_args: string[] = [];
 
@@ -444,7 +444,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 
 	constructor(command: MainCommandBuilder, name?: string, ...args: string[]) {
 		super();
-		this._command = command;
+		this._prefix = command;
 		this._options = EnterCommandBuilder.default_options(name);
 		this._args = args;
 	}
@@ -541,10 +541,9 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	 * build
 	 */
 	public build() {
-		const argv = [...this._command.argv, "enter"];
+		const argv = [...this._prefix.build(), "enter"];
 		if (this._options.name) {
-			argv.push("--name");
-			argv.push(this._options.name);
+			argv.push("--name", this._options.name);
 		}
 		if (this._options.clean_path) {
 			argv.push("--clean-path");
@@ -556,8 +555,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 			argv.push("--no-workdir");
 		}
 		if (this._options.additional_flags) {
-			argv.push("--additional-flags");
-			argv.push(this._options.additional_flags);
+			argv.push("--additional-flags", this._options.additional_flags);
 		}
 		if (this._options.help) {
 			argv.push("--help");
@@ -576,8 +574,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 		}
 
 		if (this._args.length > 0) {
-			argv.push("--");
-			argv.push(...this._args);
+			argv.push("--", ...this._args);
 		}
 
 		return argv
@@ -692,7 +689,7 @@ export interface CreateOptions {
  * the builder for the `distrobox create` command
  */
 export class CreateCommandBuilder extends CommandLineBuilder {
-	_cmd: MainCommandBuilder;
+	_prefix: MainCommandBuilder;
 	_options: CreateOptions;
 
 	public static default_options(): CreateOptions {
@@ -734,7 +731,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	}
 	constructor(cmd: MainCommandBuilder) {
 		super();
-		this._cmd = cmd;
+		this._prefix = cmd;
 		this._options = CreateCommandBuilder.default_options();
 	}
 
@@ -742,7 +739,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 	 * build
 	 */
 	public build(): string[] {
-		const argv = [...this._cmd.argv, "create"];
+		const argv = [...this._prefix.build(), "create"];
 
 		if (this._options.image) {
 			argv.push("--image", this._options.image);
@@ -1163,7 +1160,7 @@ export interface RmOptions {
  * the builder for the `distrobox rm` subcommand
  */
 export class RmCommandBuilder extends CommandLineBuilder {
-	_cmd: MainCommandBuilder;
+	_prefix: MainCommandBuilder;
 	_options: RmOptions;
 
 	public static default_options(...names: string[]): RmOptions {
@@ -1182,7 +1179,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 
 	constructor(cmd: MainCommandBuilder, ...names: string[]) {
 		super();
-		this._cmd = cmd;
+		this._prefix = cmd;
 		this._options = RmCommandBuilder.default_options(...names);
 	}
 
@@ -1190,7 +1187,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	 * build
 	 */
 	public build(): string[] {
-		const argv = [...this._cmd.argv, "rm"];
+		const argv = [...this._prefix.build(), "rm"];
 		if (this._options.all) {
 			argv.push("--all");
 		}
