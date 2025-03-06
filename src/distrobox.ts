@@ -532,7 +532,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 	/**
 	 * args
 	 */
-	public args(args: string[]) {
+	public args(...args: string[]) {
 		this._args = args;
 		return this;
 	}
@@ -577,9 +577,10 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 
 		if (this._args.length > 0) {
 			argv.push("--");
+			argv.push(...this._args);
 		}
 
-		return argv.concat(this._args);
+		return argv
 	}
 
 }
