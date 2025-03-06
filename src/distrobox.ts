@@ -259,7 +259,7 @@ export class MainCommandBuilder extends CommandLineBuilder {
 }
 
 /**
- * the builder for the `distrobox list` subcommand
+ * options for the `distrobox list` subcommand
  *
 ```console
 distrobox version: 1.8.0
@@ -279,24 +279,43 @@ Options:
 		  --version/-V:           show version
 ```
  */
+export interface ListOptions {
+	help: boolean;
+	no_color: boolean;
+	root: boolean;
+	verbose: boolean;
+	version: boolean;
+}
+
+/**
+ * the builder for the `distrobox list` subcommand, see {@link ListOptions}
+ */
 export class ListCommandBuilder extends CommandLineBuilder {
 	_command: MainCommandBuilder;
-	_help: boolean = false;
-	_no_color: boolean = false;
-	_root: boolean = false;
-	_verbose: boolean = false;
-	_version: boolean = false;
+	_options: ListOptions;
+
+	public static default_options(): ListOptions {
+		return {
+			help: false,
+			no_color: false,
+			root: false,
+			verbose: false,
+			version: false,
+
+		};
+	}
 
 	constructor(command: MainCommandBuilder) {
 		super();
 		this._command = command;
+		this._options = ListCommandBuilder.default_options();
 	}
 
 	/**
 	 * `--help/-h`
 	 */
 	public help(): this {
-		this._help = true;
+		this._options.help = true;
 		return this;
 	}
 
@@ -304,7 +323,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 * `--no-color`
 	 */
 	public no_color(): this {
-		this._no_color = true;
+		this._options.no_color = true;
 		return this;
 	}
 
@@ -312,7 +331,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 * `--root/-r`
 	 */
 	public root(): this {
-		this._root = true;
+		this._options.root = true;
 		return this;
 	}
 
@@ -320,7 +339,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 * `--verbose/-v`
 	 */
 	public verbose(): this {
-		this._verbose = true;
+		this._options.verbose = true;
 		return this;
 	}
 
@@ -328,7 +347,7 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 * `--version/-V`
 	 */
 	public version(): this {
-		this._version = true;
+		this._options.version = true;
 		return this;
 	}
 
@@ -337,19 +356,19 @@ export class ListCommandBuilder extends CommandLineBuilder {
 	 */
 	public build(): string[] {
 		const argv = [...this._command.argv, "list"];
-		if (this._help) {
+		if (this._options.help) {
 			argv.push("--help");
 		}
-		if (this._no_color) {
+		if (this._options.no_color) {
 			argv.push("--no-color");
 		}
-		if (this._root) {
+		if (this._options.root) {
 			argv.push("--root");
 		}
-		if (this._verbose) {
+		if (this._options.verbose) {
 			argv.push("--verbose");
 		}
-		if (this._version) {
+		if (this._options.version) {
 			argv.push("--version");
 		}
 		return argv;
