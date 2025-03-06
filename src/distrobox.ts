@@ -1149,7 +1149,7 @@ Options:
 ```
  */
 export interface RmOptions {
-	name: string;
+	names: string[];
 	all: boolean;
 	force: boolean;
 	rm_home: boolean;
@@ -1166,9 +1166,9 @@ export class RmCommandBuilder extends CommandLineBuilder {
 	_cmd: MainCommandBuilder;
 	_options: RmOptions;
 
-	public static default_options(name: string): RmOptions {
+	public static default_options(...names: string[]): RmOptions {
 		return {
-			name,
+			names,
 			all: false,
 			force: false,
 			rm_home: false,
@@ -1180,10 +1180,10 @@ export class RmCommandBuilder extends CommandLineBuilder {
 		}
 	}
 
-	constructor(cmd: MainCommandBuilder, name: string) {
+	constructor(cmd: MainCommandBuilder, ...names: string[]) {
 		super();
 		this._cmd = cmd;
-		this._options = RmCommandBuilder.default_options(name);
+		this._options = RmCommandBuilder.default_options(...names);
 	}
 
 	/**
@@ -1213,9 +1213,25 @@ export class RmCommandBuilder extends CommandLineBuilder {
 			argv.push("--version");
 		}
 
-		argv.push(this._options.name);
+		argv.push(...this._options.names);
 
 		return argv;
+	}
+
+	/**
+	 * *replace* all the container names to be deleted
+	 */
+	public names(...names: string[]) {
+		this._options.names = names;
+		return this;
+	}
+
+	/**
+	 * *append* another container name to be deleted
+	 */
+	public name(name: string) {
+		this._options.names.push(name);
+		return this;
 	}
 
 	/**
