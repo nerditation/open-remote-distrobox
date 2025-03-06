@@ -51,7 +51,65 @@ export class DistroManager {
 	 * - if inside a distrobox guest, use `distrobox-host-exec distrobox`
 	 */
 	public static async which(): Promise<DistroManager> {
-		return new DistroManager(await MainCommandBuilder.auto());
+		let argv;
+		try {
+			const distrobox_path = await which('distrobox');
+			console.log(`found distrobox: ${distrobox_path}`);
+			argv = [distrobox_path];
+		} catch {
+			console.log("local distrobox not found");
+		}
+		try {
+			const host_spawn_path = await which('host-spawn');
+			console.log(`inside container with host-spawn: ${host_spawn_path}`);
+			const banner = await new Promise<string>((resolve, reject) => {
+				cp.execFile(
+					host_spawn_path,
+					['distrobox', '--version'],
+					(error, stdout) => {
+						if (error) {
+							reject(error);
+						} else {
+							resolve(stdout);
+						}
+					});
+			});
+			console.log(`found distrobox on container host: ${banner}`);
+			argv = [host_spawn_path, "distrobox"];
+		} catch {
+			console.log("didn't find distrobox with host-spawn");
+		}
+		try {
+			const flatpak_spawn_path = await which('flatpak-spawn');
+			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`);
+			const banner = await new Promise<string>((resolve, reject) => {
+				cp.execFile(
+					flatpak_spawn_path,
+					['--host', 'distrobox', '--version'],
+					(error, stdout) => {
+						if (error) {
+							reject(error);
+						} else {
+							resolve(stdout);
+						}
+					});
+			});
+			console.log(`found distrobox on flatpak host: ${banner}`);
+			argv = [flatpak_spawn_path, '--host', 'distrobox'];
+		} catch {
+			console.log("didn't find distrobox on flatpak host");
+		}
+		try {
+			const distrobox_host_exec_path = await which('distrobox-host-exec');
+			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`);
+			argv = [distrobox_host_exec_path, 'distrobox'];
+		} catch {
+			console.log("not inside distrobox guest");
+		}
+		if (!argv) {
+			throw ("didn't find distrobox command");
+		}
+		return new DistroManager(new MainCommandBuilder(...argv));
 	}
 
 	/**

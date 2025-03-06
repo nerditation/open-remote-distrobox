@@ -19,7 +19,6 @@
  */
 
 import * as cp from "child_process";
-import which = require("which");
 
 export abstract class CommandLineBuilder {
 	/**
@@ -154,72 +153,6 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	constructor(...argv: string[]) {
 		super();
 		this.argv = argv;
-	}
-
-	/**
-	 * try to automatically find out how to invoke `distrobox` command
-	 *
-	 * currently these heuristics are used, in this order:
-	 * - if there's a `distrobox` command in `$PATH`, then use it
-	 * - if inside a flatpak sandbox, try `flatpak-spawn --host distrbox`
-	 * - if inside a distrobox guest, use `distrobox-host-exec distrobox`
-	 */
-	public static async auto(): Promise<MainCommandBuilder> {
-		try {
-			const distrobox_path = await which('distrobox');
-			console.log(`found distrobox: ${distrobox_path}`);
-			return new MainCommandBuilder(distrobox_path);
-		} catch {
-			console.log("local distrobox not found");
-		}
-		try {
-			const host_spawn_path = await which('host-spawn');
-			console.log(`inside container with host-spawn: ${host_spawn_path}`);
-			const banner = await new Promise<string>((resolve, reject) => {
-				cp.execFile(
-					host_spawn_path,
-					['distrobox', '--version'],
-					(error, stdout) => {
-						if (error) {
-							reject(error);
-						} else {
-							resolve(stdout);
-						}
-					});
-			});
-			console.log(`found distrobox on container host: ${banner}`);
-			return new MainCommandBuilder(host_spawn_path, 'distrobox');
-		} catch {
-			console.log("didn't find distrobox with host-spawn");
-		}
-		try {
-			const flatpak_spawn_path = await which('flatpak-spawn');
-			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`);
-			const banner = await new Promise<string>((resolve, reject) => {
-				cp.execFile(
-					flatpak_spawn_path,
-					['--host', 'distrobox', '--version'],
-					(error, stdout) => {
-						if (error) {
-							reject(error);
-						} else {
-							resolve(stdout);
-						}
-					});
-			});
-			console.log(`found distrobox on flatpak host: ${banner}`);
-			return new MainCommandBuilder(flatpak_spawn_path, '--host', 'distrobox');
-		} catch {
-			console.log("didn't find distrobox on flatpak host");
-		}
-		try {
-			const distrobox_host_exec_path = await which('distrobox-host-exec');
-			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`);
-			return new MainCommandBuilder(distrobox_host_exec_path, 'distrobox');
-		} catch {
-			console.log("not inside distrobox guest");
-		}
-		throw ("didn't find distrobox command");
 	}
 
 	/**
