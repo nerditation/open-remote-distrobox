@@ -244,6 +244,11 @@ export class ListCommandBuilder extends CommandLineBuilder {
 		this._options = ListCommandBuilder.default_options();
 	}
 
+	public with_options(options: ListOptions) {
+		this._options = options;
+		return this;
+	}
+
 	/**
 	 * `--help/-h`
 	 */
@@ -380,6 +385,11 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 		this._prefix = command;
 		this._options = EnterCommandBuilder.default_options(name);
 		this._args = args;
+	}
+
+	public with_options(options: EnterOptions) {
+		this._options = options;
+		return this;
 	}
 
 	/**
@@ -594,8 +604,8 @@ export interface CreateOptions {
 	home?: string;
 
 	volume?: string;
-	additional_flags: string[];
-	additional_packages: string[];
+	additional_flags?: string | string[];
+	additional_packages?: string | string[];
 	init_hooks?: string;
 	pre_init_hooks?: string;
 	init: boolean;
@@ -637,8 +647,8 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 			//home?: string;
 
 			//volume?: string;
-			additional_flags: [],
-			additional_packages: [],
+			//additional_flags?: string|string[],
+			//additional_packages: string|[],
 			//init_hooks?: string;
 			//pre_init_hooks?: string;
 			init: false,
@@ -666,6 +676,11 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 		super();
 		this._prefix = cmd;
 		this._options = CreateCommandBuilder.default_options();
+	}
+
+	public with_options(options: CreateOptions) {
+		this._options = options;
+		return this;
 	}
 
 	/**
@@ -701,11 +716,19 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 		if (this._options.volume) {
 			argv.push("--volume", this._options.volume);
 		}
-		if (this._options.additional_flags.length > 0) {
-			argv.push("--additional-flags", this._options.additional_flags.join(' '));
+		if (this._options.additional_flags) {
+			const flags =
+				typeof this._options.additional_flags === "string" ?
+					this._options.additional_flags :
+					this._options.additional_flags.join(' ');
+			argv.push("--additional-flags", flags);
 		}
-		if (this._options.additional_packages.length > 0) {
-			argv.push("--additional-packages", this._options.additional_packages.join(' '));
+		if (this._options.additional_packages) {
+			const packages =
+				typeof this._options.additional_packages === "string" ?
+					this._options.additional_packages :
+					this._options.additional_packages.join(' ');
+			argv.push("--additional-packages", packages);
 		}
 		if (this._options.init_hooks) {
 			argv.push("--init-hooks", this._options.init_hooks);
@@ -1114,6 +1137,11 @@ export class RmCommandBuilder extends CommandLineBuilder {
 		super();
 		this._prefix = cmd;
 		this._options = RmCommandBuilder.default_options(...names);
+	}
+
+	public with_options(options: RmOptions) {
+		this._options = options;
+		return this;
 	}
 
 	/**

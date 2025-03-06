@@ -10,7 +10,7 @@ import * as vscode from "vscode";
 
 import which = require("which");
 
-import { EnterCommandBuilder, MainCommandBuilder } from "./distrobox";
+import { CreateOptions, EnterCommandBuilder, MainCommandBuilder, RmCommandBuilder, RmOptions } from "./distrobox";
 
 /**
  * @module agent
@@ -133,21 +133,8 @@ export class DistroManager {
 	/**
 	 * encapsulate the `distrobox rm` command
 	 */
-	public async delete(name: string, flags?: {
-		force?: boolean,
-		rm_home?: boolean,
-		verbose?: boolean,
-	}): Promise<{ exit_code?: string | number, stdout: string, stderr: string }> {
-		const cmd_builder = this.cmd.rm(name);
-		if (flags?.force) {
-			cmd_builder.force();
-		}
-		if (flags?.rm_home) {
-			cmd_builder.rm_home();
-		}
-		if (flags?.verbose) {
-			cmd_builder.verbose();
-		}
+	public async delete(name: string, opts?: RmOptions): Promise<{ exit_code?: string | number, stdout: string, stderr: string }> {
+		const cmd_builder = this.cmd.rm(name).with_options(opts ?? RmCommandBuilder.default_options());
 		return cmd_builder.exec();
 	}
 
@@ -162,98 +149,8 @@ export class DistroManager {
 	/**
 	 * encapsulate the `distrobox create` command
 	 */
-	public async create(opts: {
-		name: string,
-		image: string,
-
-		hostname?: string,
-		home?: string,
-
-		volume?: string,
-		additional_flags?: string[],
-		additional_packages?: string[],
-		init_hooks?: string,
-		pre_init_hooks?: string,
-
-		pull?: boolean,
-		init?: boolean,
-		nvidia?: boolean,
-
-		unshare_devsys?: boolean,
-		unshare_groups?: boolean,
-		unshare_ipc?: boolean,
-		unshare_netns?: boolean,
-		unshare_process?: boolean,
-		unshare_all?: boolean,
-
-		no_entry?: boolean,
-		dry_run?: boolean,
-		verbose?: boolean,
-	}) {
-		const builder = this.cmd.create()
-			.yes()
-			.name(opts.name)
-			.image(opts.image);
-		if (opts.home) {
-			builder.home(opts.home);
-		}
-		if (opts.hostname) {
-			builder.hostname(opts.hostname);
-		}
-		if (opts.home) {
-			builder.home(opts.home);
-		}
-		if (opts.volume) {
-			builder.volume(opts.volume);
-		}
-		if (opts.additional_flags) {
-			builder.additional_flags(...opts.additional_flags);
-		}
-		if (opts.additional_packages) {
-			builder.additional_packages(...opts.additional_packages);
-		}
-		if (opts.init_hooks) {
-			builder.init_hooks(opts.init_hooks);
-		}
-		if (opts.pre_init_hooks) {
-			builder.pre_init_hooks(opts.pre_init_hooks);
-		}
-		if (opts.pull) {
-			builder.pull();
-		}
-		if (opts.init) {
-			builder.init();
-		}
-		if (opts.nvidia) {
-			builder.nvidia();
-		}
-		if (opts.unshare_devsys) {
-			builder.unshare_devsys();
-		}
-		if (opts.unshare_groups) {
-			builder.unshare_groups();
-		}
-		if (opts.unshare_ipc) {
-			builder.unshare_ipc();
-		}
-		if (opts.unshare_netns) {
-			builder.unshare_netns();
-		}
-		if (opts.unshare_process) {
-			builder.unshare_process();
-		}
-		if (opts.unshare_all) {
-			builder.unshare_all();
-		}
-		if (opts.no_entry) {
-			builder.no_entry();
-		}
-		if (opts.verbose) {
-			builder.verbose();
-		}
-		if (opts.dry_run) {
-			builder.dry_run();
-		}
+	public async create(opts: CreateOptions) {
+		const builder = this.cmd.create().with_options(opts).yes();
 		return builder.exec();
 	}
 

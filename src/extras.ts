@@ -22,6 +22,7 @@
 import * as vscode from "vscode";
 
 import { DistroManager } from "./agent";
+import { CreateCommandBuilder, CreateOptions, RmCommandBuilder, RmOptions } from "./distrobox";
 
 // TODO:
 // better to show a user friendly wizard dialog, but I don't know how
@@ -29,32 +30,31 @@ import { DistroManager } from "./agent";
 export async function create_command() {
 	const manager = await DistroManager.which();
 
-	const name = await vscode.window.showInputBox({
+	const opts: CreateOptions = CreateCommandBuilder.default_options();
+	opts.name = await vscode.window.showInputBox({
 		ignoreFocusOut: true,
 		title: "name",
 		placeHolder: "type the name of the distrobox container. empty input will cancel",
 	});
-	if (!name || name == "") {
+	if (!opts.name || opts.name == "") {
 		return;
 	}
 
-	let image = await vscode.window.showQuickPick(manager.compatibility(), {
+	opts.image = await vscode.window.showQuickPick(manager.compatibility(), {
 		ignoreFocusOut: true,
 		title: "compatible image",
 		placeHolder: "select a compatible image, or press Escape for custom image",
 	});
-	if (!image) {
-		image = await vscode.window.showInputBox({
+	if (!opts.image) {
+		opts.image = await vscode.window.showInputBox({
 			ignoreFocusOut: true,
 			title: "custom image",
 			placeHolder: "type the image you want to use, empty input will cancel"
 		});
-		if (!image || image == "") {
+		if (!opts.image || opts.image == "") {
 			return;
 		}
 	}
-
-	const opts: Record<string, any> = { name, image };
 
 	const advanced = await vscode.window.showQuickPick(
 		[
@@ -121,19 +121,19 @@ export async function create_command() {
 		};
 		const flag_picks = await vscode.window.showQuickPick(
 			[
-				pick("no entry", "do not generate a container entry in the application list"),
+				pick("no_entry", "do not generate a container entry in the application list"),
 				pick("verbose", "show more verbosity"),
-				pick("dry run", "only print the container manager command generated"),
+				pick("dry_run", "only print the container manager command generated"),
 				pick("pull", "pull the image even if it exsists locally"),
 				pick("init", "use init system (like systemd) inside the container. this will make host's process not visible from within the container. (assumes --unshare-process)"),
 				pick("nvidia", "try to integrate host's nVidia drivers in the guest"),
 				separator("container namespaces"),
-				pick("unshare all", "activate all the unshare flags below"),
-				pick("unshare devsys", "do not share host devices and sysfs dirs from host"),
-				pick("unshare groups", "do not forward user's additional groups into the container"),
-				pick("unshare ipc", "do not share ipc namespace with host"),
-				pick("unshare netns", "do not share the net namespace with host"),
-				pick("unshare process", "do not share process namespace with host"),
+				pick("unshare_all", "activate all the unshare flags below"),
+				pick("unshare_devsys", "do not share host devices and sysfs dirs from host"),
+				pick("unshare_groups", "do not forward user's additional groups into the container"),
+				pick("unshare_ipc", "do not share ipc namespace with host"),
+				pick("unshare_netns", "do not share the net namespace with host"),
+				pick("unshare_process", "do not share process namespace with host"),
 			],
 			{
 				ignoreFocusOut: true,
@@ -143,7 +143,7 @@ export async function create_command() {
 			}
 		) ?? [];
 		for (const flag of flag_picks) {
-			opts[flag.label] = true;
+			(opts as any)[flag.label] = true;
 		}
 	}
 	if ("Continue" != await vscode.window.showWarningMessage(
@@ -166,9 +166,6 @@ export async function create_command() {
 			progress.report({
 				message: "this may take a while if the image needs to be pulled from servers..."
 			});
-			// TODO:
-			// refactor the options into a named type or interface
-			// @ts-ignore
 			const result = await manager.create(opts);
 			return result;
 		}
@@ -211,7 +208,7 @@ ${stderr}
 
 	// TODO: use agent instead of command line builder
 	if (exit_code == undefined) {
-		const guest = await manager.get(name);
+		const guest = await manager.get(opts.name);
 		guest.create_terminal("distrobox initial setup").show(true);
 	}
 }
@@ -259,7 +256,7 @@ export async function delete_command(name?: string) {
 	const flag_picks = await vscode.window.showQuickPick(
 		[
 			pick("force", "force deletion"),
-			pick("remove home", "remove the mounted hoe if it differs from the host user's one"),
+			pick("rm_home", "remove the mounted hoe if it differs from the host user's one"),
 			pick("verbose", "show more verbosity"),
 		],
 		{
@@ -271,9 +268,9 @@ export async function delete_command(name?: string) {
 	if (!flag_picks) {
 		return;
 	}
-	const flags: Record<string, boolean> = {};
+	const flags: RmOptions = RmCommandBuilder.default_options();
 	for (const flag of flag_picks) {
-		flags[flag.label] = true;
+		(flags as any)[flag.label] = true;
 	}
 	if ("Yes, Please Delete It" != await vscode.window.showWarningMessage(
 		"FINAL CONFIRMAIION",
