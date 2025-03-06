@@ -439,7 +439,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 			dry_run: false,
 			verbose: false,
 			version: false,
-		}
+		};
 	}
 
 	constructor(command: MainCommandBuilder, name?: string, ...args: string[]) {
@@ -577,7 +577,7 @@ export class EnterCommandBuilder extends CommandLineBuilder {
 			argv.push("--", ...this._args);
 		}
 
-		return argv
+		return argv;
 	}
 
 }
@@ -727,7 +727,7 @@ export class CreateCommandBuilder extends CommandLineBuilder {
 
 			absolutely_disable_root_password_i_am_really_positively_sure: false,
 
-		}
+		};
 	}
 	constructor(cmd: MainCommandBuilder) {
 		super();
@@ -1174,7 +1174,7 @@ export class RmCommandBuilder extends CommandLineBuilder {
 			verbose: false,
 			version: false,
 
-		}
+		};
 	}
 
 	constructor(cmd: MainCommandBuilder, ...names: string[]) {

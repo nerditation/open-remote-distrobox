@@ -240,7 +240,7 @@ export class GuestDistro {
 		stdout: string,
 		stderr: string
 	}> {
-		return this.cmd.args(args).exec();
+		return this.cmd.args(...args).exec();
 	}
 
 	/**
@@ -257,7 +257,7 @@ export class GuestDistro {
 		} else {
 			args = vararg;
 		}
-		return this.cmd.args(args).spawn(opts);
+		return this.cmd.args(...args).spawn(opts);
 	}
 
 	/**
@@ -305,7 +305,7 @@ export class GuestDistro {
 	 * run the given command in the terminal pane
 	 */
 	public create_terminal(name: string, ...args: string[]) {
-		const argv = this.cmd.args(args).build();
+		const argv = this.cmd.args(...args).build();
 		const argv0 = argv.shift();
 		const terminal = vscode.window.createTerminal({
 			name,
