@@ -19,6 +19,8 @@
  * different default shell, such as `alpine` linux
  */
 
+import * as net from "net";
+
 import * as vscode from 'vscode';
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 import { arch } from 'os';
@@ -211,6 +213,52 @@ export class DistroboxResolver {
 		return output;
 	}
 
+	public async find_running_server_port(): Promise<string> {
+		const guest = this.guest;
+		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
+		const locker = guest.spawn_2("bash");
+		locker.write(`exec 200>"${run_dir}/lock"\n`);
+		console.log(await locker.pipe_command("flock -x 200; echo locked\n"));
+		try {
+			const port_line = await guest.read_text_file(`${run_dir}/port`);
+			console.log(port_line);
+			const port = parseInt(port_line, 10);
+			const socket = new net.Socket();
+			socket.setTimeout(2000);
+			const can_connect = await new Promise<boolean>((resolve, reject) => {
+				socket.on('connect', () => {
+					console.log(`Connected to ${port} - Port is open`);
+					socket.destroy();
+					resolve(true);
+				});
+				socket.on('timeout', () => {
+					console.log(`Connection to ${port} timed out - Port is closed`);
+					socket.destroy();
+					resolve(false);
+				});
+				socket.on('error', (err) => {
+					console.log(`Error connecting to ${port} - Port is closed (${err.message})`);
+					resolve(false);
+				});
+				socket.connect(port, "localhost");
+			});
+			if (can_connect) {
+				const count = parseInt(await guest.read_text_file(`${run_dir}/count`), 10);
+				console.log(count);
+				await guest.write_to_file(`${run_dir}/count`, `${count + 1}`);
+				await locker.pipe_command("flock -u 200; echo unlocked\n");
+				return port_line;
+			} else {
+				await locker.finish("flock -u 200; echo unlocked\n");
+				return "NOT RUNNING";
+			}
+		} catch (e) {
+			console.log("port file not found");
+			await locker.finish("flock -u 200; echo unlocked\n");
+			return "NOT RUNNING";
+		}
+	}
+
 	/**
 	 * try to detect an running server and find the port number
 	 *
@@ -218,7 +266,7 @@ export class DistroboxResolver {
 	 * - a tcp port number, on success
 	 * - "NOT RUNNING"
 	 */
-	public async find_running_server_port(): Promise<string> {
+	public async find_running_server_port_(): Promise<string> {
 		const { guest, os, arch } = this;
 		const { stdout: output } = await guest.run_bash_script(
 			`
