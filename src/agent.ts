@@ -75,7 +75,7 @@ export class DistroManager {
 					});
 			});
 			console.log(`found distrobox on container host: ${banner}`);
-			argv = [host_spawn_path, "distrobox"];
+			argv = [host_spawn_path, "--no-pty", "distrobox"];
 		} catch {
 			console.log("didn't find distrobox with host-spawn");
 		}
