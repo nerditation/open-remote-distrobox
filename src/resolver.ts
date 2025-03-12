@@ -185,6 +185,7 @@ export class DistroboxResolver {
 		if (port) {
 			await guest.write_to_file(`${run_dir}/pid`, `${pid}`);
 			await guest.write_to_file(`${run_dir}/count`, "1");
+			await guest.write_to_file(`${run_dir}/port`, port);
 		} else {
 			const subpid = await guest.exec_text("ps", "--ppid", `${pid}`, "-o", "pid=");
 			await guest.exec_text("kill", subpid);
