@@ -385,10 +385,21 @@ export class DistroboxResolver {
 		return output.trim() == "true";
 	}
 
+	public async shutdown_server() {
+		const guest = this.guest;
+		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
+		const child = guest.spawn_2(
+			"bash",
+			"-c",
+			`cd "${run_dir}"; sleep 10; flock "./lock" -c 'count=$(($(cat ./count) - 1)); echo "$count" >./count; if [[ "$count" -eq 0 ]]; then pid=$(cat ./pid); kill $(ps --ppid "$pid" -o pid=); kill $"pid"; rm -f port count pid; fi'`
+		);
+		child.child.unref();
+	}
+
 	/**
 	 * shutdown the server, will be called in `extension.deactivate()`
 	 */
-	public async shutdown_server() {
+	public async shutdown_server_() {
 		const { guest, os, arch } = this;
 		await guest.run_bash_script_detached(
 			`
