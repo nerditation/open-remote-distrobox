@@ -96,7 +96,7 @@ export class DistroboxResolver {
 			"-C",
 			`${path}`
 		);
-		await tar(buffer);
+		await tar(...buffer);
 	}
 
 	/**
