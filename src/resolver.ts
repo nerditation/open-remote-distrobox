@@ -135,6 +135,66 @@ export class DistroboxResolver {
 		});
 	}
 
+	public async try_start_new_server(): Promise<string> {
+		const guest = this.guest;
+		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
+		const commands = [];
+		for (const name in env) {
+			const value = env[name];
+			if (typeof value == 'string') {
+				commands.push(`${name}="${value}"`);
+			} else if (value == true) {
+				const local_value = process.env[name];
+				if (local_value) {
+					commands.push(`${name}="${local_value}"`);
+				}
+			}
+		}
+		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
+		const locker = guest.spawn_2("bash");
+		locker.write(`mkdir -p "${run_dir}"\n`);
+		locker.write(`exec 200>"${run_dir}/lock"\n`);
+		console.log(await locker.pipe_command("flock -x 200; echo locked\n"));
+
+		commands.push(
+			"mkdir",
+			"-p",
+			`"${run_dir}"`,
+			";",
+			"exec",
+			"nohup",
+			`$HOME/${server_binary_path(this.os, this.arch)}`,
+			"--accept-server-license-terms",
+			"--telemetry-level off",
+			"--host localhost",
+			"--port 0",
+			"--without-connection-token",
+			`>"${run_dir}/log"`,
+		);
+		const pid = await guest.exec_text("bash", "-c", `(echo $BASHPID; ${commands.join(' ')})&`);
+		console.log(pid);
+		let port;
+		for (let i = 0; i < 5; ++i) {
+			const output = await guest.read_text_file(`${run_dir}/log`);
+			const match = output.match(/Extension host agent listening on ([0-9]+)/);
+			if (match) {
+				port = match[1];
+				break;
+			}
+		}
+		if (port) {
+			await guest.write_to_file(`${run_dir}/pid`, `${pid}`);
+			await guest.write_to_file(`${run_dir}/count`, "1");
+		} else {
+			const subpid = await guest.exec_text("ps", "--ppid", `${pid}`, "-o", "pid=");
+			await guest.exec_text("kill", subpid);
+			await guest.exec_text("kill", `${pid}`);
+			port = "ERROR";
+		}
+		console.log(await locker.finish("flock -u 200; echo unlocked\n"));
+		return port;
+	}
+
 	/**
 	 * try to start a new server process and find the port number
 	 *
@@ -143,7 +203,7 @@ export class DistroboxResolver {
 	 * - "NOT INSTALLED", if the server binary is not installed
 	 * - "ERROR", if failed to launch the server or find the port number
 	 */
-	public async try_start_new_server(): Promise<string> {
+	public async try_start_new_server_(): Promise<string> {
 		const { guest, os, arch } = this;
 		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
 		const export_commands = [];
@@ -217,6 +277,7 @@ export class DistroboxResolver {
 		const guest = this.guest;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
 		const locker = guest.spawn_2("bash");
+		locker.write(`mkdir -p "${run_dir}"\n`);
 		locker.write(`exec 200>"${run_dir}/lock"\n`);
 		console.log(await locker.pipe_command("flock -x 200; echo locked\n"));
 		try {
@@ -301,10 +362,14 @@ export class DistroboxResolver {
 		return output;
 	}
 
+	public async is_server_installed(): Promise<boolean> {
+		return await this.guest.is_file(`$HOME/${server_binary_path(this.os, this.arch)}`);
+	}
+
 	/**
 	 * check if the server is already installed
 	 */
-	public async is_server_installed(): Promise<boolean> {
+	public async is_server_installed_(): Promise<boolean> {
 		const { guest, os, arch } = this;
 		const { stdout: output } = await guest.run_bash_script(
 			`
