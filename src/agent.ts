@@ -189,64 +189,6 @@ export class GuestDistro {
 	}
 
 	/**
-	 * wrapper for `distrobox enter` command using `child_process.spawn()`
-	 */
-	public spawn(opts?: cp.SpawnOptions, ...args: string[]): cp.ChildProcess;
-	public spawn(...args: string[]): cp.ChildProcess;
-	public spawn(...vararg: any[]): cp.ChildProcess {
-		let opts: cp.SpawnOptions | undefined;
-		let args: string[];
-		if (typeof vararg[0] === "object" && vararg[0] != null) {
-			opts = vararg.shift();
-			args = vararg;
-		} else {
-			args = vararg;
-		}
-		return this.cmd.args(...args).spawn(opts);
-	}
-
-	/**
-	 * similar to `this.spawn()` but returns a function which acts like a pipe
-	 */
-	public spawn_piped(...args: string[]): (...inputs: any[]) => Promise<string> {
-		const child = this.spawn(
-			{
-				stdio: ["pipe", "pipe", "inherit"]
-			},
-			...args
-		);
-		const output_chunks: Uint8Array[] = [];
-		child.stdout?.on("data", (chunk: Uint8Array) => output_chunks.push(chunk));
-		const child_closed = new Promise<number>((resolve, reject) => {
-			child.on("close", (code, signal) => {
-				if (signal) {
-					reject(signal);
-				} else {
-					resolve(code ?? 0);
-				}
-			});
-		});
-		return async (...inputs: any[]) => {
-			for (const chunk of inputs) {
-				await new Promise<void>((resolve, reject) => {
-					child.stdin?.write(chunk, (error) => {
-						if (error) {
-							reject(error);
-						} else {
-							resolve();
-						}
-					});
-				});
-			}
-			await new Promise<void>((resolve, reject) => child.stdin?.end(resolve));
-			await child_closed;
-			const output = Buffer.concat(output_chunks);
-			const decoder = new TextDecoder("utf8");
-			return decoder.decode(output);
-		};
-	}
-
-	/**
 	 * run the given command in the terminal pane
 	 */
 	public create_terminal(name: string, ...args: string[]) {
@@ -263,48 +205,8 @@ export class GuestDistro {
 	}
 
 	/**
-	 * run the given script as a bash script. distrobox containers always have
-	 * bash, even for alpine linux.
-	 *
-	 * returns stdout as string, also returns stderr and exit code for debugging
+	 * wrapper for `distrobox enter` command using `child_process.spawn()`
 	 */
-	public run_bash_script(input: string): Promise<{ exit_code?: number, stdout: string, stderr: string }> {
-		const bash = this.spawn({ stdio: "pipe", }, "bash");
-		const stdout_chunks: Buffer[] = [];
-		const stderr_chunks: Buffer[] = [];
-		bash.stdout?.on("data", (chunk) => { stdout_chunks.push(chunk); });
-		bash.stderr?.on("data", (chunk) => { stderr_chunks.push(chunk); });
-		return new Promise((resolve, reject) => {
-			bash.on("close", (exit_code, signal) => {
-				if (signal) {
-					reject({
-						description: "process received signal",
-						signal
-					});
-				} else {
-					const utf8 = new TextDecoder("utf8");
-					resolve({
-						exit_code: exit_code ?? undefined,
-						stdout: utf8.decode(Buffer.concat(stdout_chunks)),
-						stderr: utf8.decode(Buffer.concat(stderr_chunks)),
-					});
-				}
-			});
-			bash.stdin?.end(input);
-		});
-	}
-
-	/**
-	 * run_bash_script_detached
-	 */
-	public async run_bash_script_detached(input: string) {
-		return new Promise<void>((resolve, reject) => {
-			const bash = this.spawn({ stdio: "pipe", detached: true }, "bash");
-			bash.unref();
-			bash.stdin?.end(input, resolve);
-		});
-	}
-
 	public spawn_2(...command: string[]): PipedChildProcess {
 		const argv = this.cmd.args(...command).build();
 		const argv0 = argv.shift()!;

@@ -127,6 +127,14 @@ export class DistroboxResolver {
 		});
 	}
 
+	/**
+	 * try to start a new server process and find the port number
+	 *
+	 * @returns the `stdout` of the launch script, can be one of:
+	 * - a tcp port number on success
+	 * - "NOT INSTALLED", if the server binary is not installed
+	 * - "ERROR", if failed to launch the server or find the port number
+	 */
 	public async try_start_new_server(): Promise<string> {
 		const guest = this.guest;
 		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
@@ -189,83 +197,12 @@ export class DistroboxResolver {
 	}
 
 	/**
-	 * try to start a new server process and find the port number
+	 * try to detect an running server and find the port number
 	 *
-	 * @returns the `stdout` of the launch script, can be one of:
-	 * - a tcp port number on success
-	 * - "NOT INSTALLED", if the server binary is not installed
-	 * - "ERROR", if failed to launch the server or find the port number
+	 * @returns the `stdout` of the shell script, can be one of:
+	 * - a tcp port number, on success
+	 * - "NOT RUNNING"
 	 */
-	public async try_start_new_server_(): Promise<string> {
-		const { guest, os, arch } = this;
-		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
-		const export_commands = [];
-		for (const name in env) {
-			const value = env[name];
-			if (typeof value == 'string') {
-				export_commands.push(`export ${name}="${value}"`);
-			} else if (value == true) {
-				const local_value = process.env[name];
-				if (local_value) {
-					export_commands.push(`export ${name}="${local_value}"`);
-				}
-			}
-		}
-		console.log("exported env for remote server: ", export_commands);
-		const { stdout: output } = await guest.run_bash_script(
-			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
-			LOG_FILE=$RUN_DIR/log
-			PID_FILE=$RUN_DIR/pid
-			PORT_FILE=$RUN_DIR/port
-			COUNT_FILE=$RUN_DIR/count
-
-			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
-
-			mkdir -p $RUN_DIR
-
-			# open lock file
-			exec 200> $LOCK_FILE
-
-			# enter critical section
-			flock -x 200
-
-			if [[ -f $SERVER_FILE ]]; then
-				${export_commands.join('\n')}
-				nohup \
-					$SERVER_FILE \
-					--accept-server-license-terms \
-					--telemetry-level off \
-					--host localhost \
-					--port 0 \
-					--without-connection-token \
-					> $LOG_FILE \
-					&
-				echo $! > $PID_FILE
-
-				for i in {1..5}; do
-					LISTENING_ON=$(sed -n 's/.*Extension host agent listening on \\([0-9]\\+\\).*/\\1/p' $LOG_FILE)
-					if [[ -n $LISTENING_ON ]]; then
-						break
-					fi
-					sleep 0.5
-				done
-
-				if [[ -n $LISTENING_ON ]]; then
-					echo "1" > $COUNT_FILE
-					echo $LISTENING_ON | tee $PORT_FILE
-				else
-					kill $(cat $PID_FILE)
-					echo ERROR
-				fi
-			else
-				echo NOT INSTALLED
-			fi
-			`
-		);
-		return output;
-	}
-
 	public async find_running_server_port(): Promise<string> {
 		const guest = this.guest;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
@@ -314,69 +251,15 @@ export class DistroboxResolver {
 	}
 
 	/**
-	 * try to detect an running server and find the port number
-	 *
-	 * @returns the `stdout` of the shell script, can be one of:
-	 * - a tcp port number, on success
-	 * - "NOT RUNNING"
+	 * check if the server is already installed
 	 */
-	public async find_running_server_port_(): Promise<string> {
-		const { guest, os, arch } = this;
-		const { stdout: output } = await guest.run_bash_script(
-			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
-			LOCK_FILE=$RUN_DIR/lock
-			COUNT_FILE=$RUN_DIR/count
-			PORT_FILE=$RUN_DIR/port
-
-			# open lock file
-			exec 200> $LOCK_FILE
-
-			# enter critical section
-			flock -x 200
-
-			if [[ -f $PORT_FILE ]]; then
-				if [[ -z "$(ss -tln | grep :$(cat $PORT_FILE))" ]]; then
-					kill $(ps --ppid $(cat $PID_FILE) -o pid=)
-					kill $(cat $PID_FILE)
-					rm -f $PORT_FILE $PID_FILE $COUNT_FILE
-					echo STALE
-				else
-					count=$(cat $COUNT_FILE)
-					count=$(($count + 1))
-					echo $count > $COUNT_FILE
-					cat $PORT_FILE
-				fi
-			else
-				echo NOT RUNNING;
-			fi
-			`
-		);
-		return output;
-	}
-
 	public async is_server_installed(): Promise<boolean> {
 		return await this.guest.is_file(`$HOME/${server_binary_path(this.os, this.arch)}`);
 	}
 
 	/**
-	 * check if the server is already installed
+	 * shutdown the server, will be called in `extension.deactivate()`
 	 */
-	public async is_server_installed_(): Promise<boolean> {
-		const { guest, os, arch } = this;
-		const { stdout: output } = await guest.run_bash_script(
-			`
-			SERVER_FILE=$HOME/${server_binary_path(os, arch)}
-			if [[ -f $SERVER_FILE ]]; then
-				echo true
-			else
-				echo false
-			fi
-			`
-		);
-		return output.trim() == "true";
-	}
-
 	public async shutdown_server() {
 		const guest = this.guest;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
@@ -386,41 +269,6 @@ export class DistroboxResolver {
 			`cd "${run_dir}"; sleep 10; flock "./lock" -c 'count=$(($(cat ./count) - 1)); echo "$count" >./count; if [[ "$count" -eq 0 ]]; then pid=$(cat ./pid); kill $(ps --ppid "$pid" -o pid=); kill $"pid"; rm -f port count pid; fi'`
 		);
 		child.child.unref();
-	}
-
-	/**
-	 * shutdown the server, will be called in `extension.deactivate()`
-	 */
-	public async shutdown_server_() {
-		const { guest, os, arch } = this;
-		await guest.run_bash_script_detached(
-			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
-			LOCK_FILE=$RUN_DIR/lock
-			COUNT_FILE=$RUN_DIR/count
-			PORT_FILE=$RUN_DIR/port
-			PID_FILE=$RUN_DIR/pid
-
-			exec 1>&-
-			sleep 5
-
-			# open lock file
-			exec 200> $LOCK_FILE
-
-			# enter critical section
-			flock -x 200
-
-			count=$(cat $COUNT_FILE)
-			count=$(($count - 1))
-			echo $count > $COUNT_FILE
-
-			if [[ $count -eq 0 ]]; then
-				kill $(ps --ppid $(cat $PID_FILE) -o pid=)
-				kill $(cat $PID_FILE)
-				rm -f $PORT_FILE $PID_FILE $COUNT_FILE
-			fi
-			`,
-		);
 	}
 
 	/**
@@ -458,26 +306,9 @@ export class DistroboxResolver {
 	 */
 	public async clear_session_files() {
 		const { guest, os, arch } = this;
-		await guest.run_bash_script(
-			`
-			RUN_DIR=$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}
-			LOCK_FILE=$RUN_DIR/lock
-			COUNT_FILE=$RUN_DIR/count
-			PORT_FILE=$RUN_DIR/port
-			PID_FILE=$RUN_DIR/pid
-
-			# open lock file
-			exec 200> $LOCK_FILE
-
-			# enter critical section
-			flock -x 200
-
-			kill $(ps --ppid $(cat $PID_FILE) -o pid=)
-			kill $(cat $PID_FILE)
-			rm -f $PORT_FILE $PID_FILE $COUNT_FILE
-			`,
-		);
-
+		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
+		const pid = await guest.read_text_file(`${run_dir}/pid`);
+		await guest.exec_text("bash", "-c", `flock "${run_dir}/lock" -c 'kill $(ps --ppid "${pid}" -o pid=); kill "${pid}"; rm -f "${run_dir}/port" "${run_dir}/pid" "${run_dir}/count"'`);
 	}
 }
 
@@ -534,7 +365,7 @@ export class ServerInformation implements vscode.TreeDataProvider<string> {
 
 	static async from(resolver: DistroboxResolver): Promise<ServerInformation> {
 		const { guest, os, arch } = resolver;
-		const output = await guest.spawn_piped("bash")(
+		const output = await guest.spawn_2("bash").finish(
 			`
 			RUN_DIR="$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}"
 			echo $RUN_DIR
@@ -550,7 +381,7 @@ export class ServerInformation implements vscode.TreeDataProvider<string> {
 			server_port,
 			server_pid1,
 			server_pid2,
-		] = output.split('\n');
+		] = utf8.decode(output.stdout).split('\n');
 
 		return new ServerInformation(
 			guest.name,
