@@ -85,18 +85,8 @@ export class DistroboxResolver {
 	public async extract_server_tarball(buffer: Uint8Array[]) {
 		const { guest, os, arch } = this;
 		const path = server_extract_path(os, arch);
-		await guest.exec(
-			"mkdir",
-			"-p",
-			`${path}`
-		);
-		const tar = guest.spawn_piped(
-			"tar",
-			"-xz",
-			"-C",
-			`${path}`
-		);
-		await tar(...buffer);
+		const out = await guest.spawn_2("bash", "-c", `mkdir -p "${path}"; tar -xz -C "${path}"`).pipe(Buffer.concat(buffer));
+		console.log(out);
 	}
 
 	/**
