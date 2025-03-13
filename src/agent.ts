@@ -189,17 +189,6 @@ export class GuestDistro {
 	}
 
 	/**
-	 * wrapper for `distrobox enter` command using `child_process.exec()`
-	 */
-	public async exec(...args: string[]): Promise<{
-		exit_code?: string | number,
-		stdout: string,
-		stderr: string
-	}> {
-		return this.cmd.args(...args).exec();
-	}
-
-	/**
 	 * wrapper for `distrobox enter` command using `child_process.spawn()`
 	 */
 	public spawn(opts?: cp.SpawnOptions, ...args: string[]): cp.ChildProcess;

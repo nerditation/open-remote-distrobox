@@ -25,6 +25,7 @@ import * as vscode from 'vscode';
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 import { arch } from 'os';
 import { DistroManager, GuestDistro } from './agent';
+import { utf8 } from "./utils";
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -54,7 +55,8 @@ export class DistroboxResolver {
 	 */
 	public static async for_guest_distro(guest: GuestDistro): Promise<DistroboxResolver> {
 		const resolver = new DistroboxResolver(guest);
-		const { stdout: ldd_info, stderr: ldd_info_err } = await guest.exec("ldd", "--version");
+		const { stdout: ldd_info_blob, stderr: ldd_info_err } = await guest.spawn_2("ldd", "--version").finish();
+		const ldd_info = utf8.decode(ldd_info_blob);
 		// `lsb_release` might not be installed on alpine
 		// I just check for the `musl` libc, which is the libc used by `alpine`
 		// I could also check `/etc/os-release` too, but it's good enough for me.
@@ -65,7 +67,7 @@ export class DistroboxResolver {
 		} else if (ldd_info.match(/Free Software Foundation/)) {
 			// glibc's ldd doesn't show the archtecture, need probe further
 			// can't use `uname`, 32 bit guests can run on 64 bit host
-			const { stdout: ldd_info } = await guest.exec("ldd", "/bin/sh");
+			const ldd_info = await guest.exec_text("ldd", "/bin/sh");
 			const glibc_ld_path = ldd_info.match(/\/lib(64)?\/ld-linux-(.+).so/)!;
 			resolver.arch = linux_arch_to_nodejs_arch(glibc_ld_path[2]);
 		} else {
