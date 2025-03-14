@@ -55,19 +55,18 @@ export class DistroboxResolver {
 	 */
 	public static async for_guest_distro(guest: GuestDistro): Promise<DistroboxResolver> {
 		const resolver = new DistroboxResolver(guest);
-		const { stdout: ldd_info_blob, stderr: ldd_info_err } = await guest.spawn_2("ldd", "--version").finish();
-		const ldd_info = utf8.decode(ldd_info_blob);
+		const ldd_info = (await guest.exec("bash", "-c", "ldd --version 2>&1")).stdout;
 		// `lsb_release` might not be installed on alpine
 		// I just check for the `musl` libc, which is the libc used by `alpine`
 		// I could also check `/etc/os-release` too, but it's good enough for me.
-		const is_musl = ldd_info_err.match(/musl libc \((.+)\)/);
+		const is_musl = ldd_info.match(/musl libc \((.+)\)/);
 		if (is_musl) {
 			resolver.os = "alpine";
 			resolver.arch = linux_arch_to_nodejs_arch(is_musl[1]);
 		} else if (ldd_info.match(/Free Software Foundation/)) {
 			// glibc's ldd doesn't show the archtecture, need probe further
 			// can't use `uname`, 32 bit guests can run on 64 bit host
-			const ldd_info = await guest.exec_text("ldd", "/bin/sh");
+			const ldd_info = (await guest.exec("ldd", "/bin/sh")).stdout;
 			const glibc_ld_path = ldd_info.match(/\/lib(64)?\/ld-linux-(.+).so/)!;
 			resolver.arch = linux_arch_to_nodejs_arch(glibc_ld_path[2]);
 		} else {
@@ -87,8 +86,12 @@ export class DistroboxResolver {
 	public async extract_server_tarball(buffer: Uint8Array[]) {
 		const { guest, os, arch } = this;
 		const path = server_extract_path(os, arch);
-		const out = await guest.spawn_2("bash", "-c", `mkdir -p "${path}"; tar -xz -C "${path}"`).pipe(Buffer.concat(buffer));
-		console.log(out);
+		await guest.exec_with_input(
+			Buffer.concat(buffer),
+			"bash",
+			"-c",
+			`mkdir -p "${path}"; tar -xz -C "${path}"`
+		);
 	}
 
 	/**
@@ -171,7 +174,7 @@ export class DistroboxResolver {
 			"--without-connection-token",
 			`>"${run_dir}/log"`,
 		);
-		const pid = await guest.exec_text("bash", "-c", `(echo $BASHPID; ${commands.join(' ')})&`);
+		const pid = (await guest.exec("bash", "-c", `(echo $BASHPID; ${commands.join(' ')})&`)).stdout;
 		console.log(pid);
 		let port;
 		for (let i = 0; i < 5; ++i) {
@@ -187,9 +190,9 @@ export class DistroboxResolver {
 			await guest.write_to_file(`${run_dir}/count`, "1");
 			await guest.write_to_file(`${run_dir}/port`, port);
 		} else {
-			const subpid = await guest.exec_text("ps", "--ppid", `${pid}`, "-o", "pid=");
-			await guest.exec_text("kill", subpid);
-			await guest.exec_text("kill", `${pid}`);
+			const subpid = (await guest.exec("ps", "--ppid", `${pid}`, "-o", "pid=")).stdout;
+			await guest.exec("kill", subpid);
+			await guest.exec("kill", `${pid}`);
 			port = "ERROR";
 		}
 		console.log(await locker.finish("flock -u 200; echo unlocked\n"));
@@ -308,7 +311,7 @@ export class DistroboxResolver {
 		const { guest, os, arch } = this;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
 		const pid = await guest.read_text_file(`${run_dir}/pid`);
-		await guest.exec_text("bash", "-c", `flock "${run_dir}/lock" -c 'kill $(ps --ppid "${pid}" -o pid=); kill "${pid}"; rm -f "${run_dir}/port" "${run_dir}/pid" "${run_dir}/count"'`);
+		await guest.exec("bash", "-c", `flock "${run_dir}/lock" -c 'kill $(ps --ppid "${pid}" -o pid=); kill "${pid}"; rm -f "${run_dir}/port" "${run_dir}/pid" "${run_dir}/count"'`);
 	}
 }
 

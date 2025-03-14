@@ -12,6 +12,9 @@ import which = require("which");
 
 import { CreateOptions, EnterCommandBuilder, MainCommandBuilder, RmCommandBuilder, RmOptions } from "./distrobox";
 import { PipedChildProcess, utf8 } from "./utils";
+import { promisify } from "util";
+
+const execFile = promisify(cp.execFile);
 
 /**
  * @module agent
@@ -213,10 +216,6 @@ export class GuestDistro {
 		return new PipedChildProcess(cp.spawn(argv0, argv));
 	}
 
-	public exec_text(...command: string[]) {
-		return this.spawn_2(...command).pipe_text();
-	}
-
 	public write_to_file(path: string, data: string | Uint8Array) {
 		// need bash for redirection, and variable expansion, such as "$XDG_RUNTIME_DIR"
 		const child = this.spawn_2("bash", "-c", `cat >"${path}"`);
@@ -239,7 +238,34 @@ export class GuestDistro {
 	}
 
 	public async is_file(path: string): Promise<boolean> {
-		const output = await this.exec_text("bash", "-c", `if [[ -f "${path}" ]]; then echo true; else echo false; fi\n`);
-		return output.trim() == "true";
+		const output = await this.exec("bash", "-c", `if [[ -f "${path}" ]]; then echo true; else echo false; fi\n`);
+		return output.stdout.trim() == "true";
+	}
+
+	/**
+	 * exec: run the command in the guest container using `distrobox enter`
+	 *
+	 * just a wrapper for promisified `child_process.execFile`
+	 *
+	 * the return type has a `child` field, if you await on it, it resolves
+	 * to a struct { stdout: string, stderr: string }
+	 */
+	public exec(...command: string[]) {
+		const argv = this.cmd.args(...command).build();
+		const argv0 = argv.shift()!;
+		const promise = execFile(argv0, argv);
+		promise.child.stdin?.end();
+		return promise;
+	}
+
+	/**
+	 * exec_with_input: similar to `exec`, but send `input` to `stdin`
+	 */
+	public exec_with_input(input: string | Uint8Array, ...command: string[]) {
+		const argv = this.cmd.args(...command).build();
+		const argv0 = argv.shift()!;
+		const promise = execFile(argv0, argv);
+		promise.child.stdin?.end(input);
+		return promise;
 	}
 }
