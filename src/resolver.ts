@@ -63,7 +63,15 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 * @returns a promise that resolves to `Self`
 	 */
 	public static async create(guest: GuestDistro): Promise<DistroboxResolver> {
-		const ldd_info = (await guest.exec("bash", "-c", "ldd --version 2>&1")).stdout;
+		let ldd_info;
+		try {
+			ldd_info = (await guest.exec("bash", "-c", "ldd --version 2>&1")).stdout;
+		} catch (e: any) {
+			// musl'd ldd doesn't support `--version`, it will exit with code 1
+			// promisified execFile will throw exception for non-zero exit code
+			// but the stdout is still captured
+			ldd_info = e.stdout;
+		}
 		// `lsb_release` might not be installed on alpine
 		// I just check for the `musl` libc, which is the libc used by `alpine`
 		// I could also check `/etc/os-release` too, but it's good enough for me.
