@@ -26,6 +26,7 @@ import { server_binary_path, server_download_url, server_extract_path, system_id
 import { arch } from 'os';
 import { DistroManager, GuestDistro } from './agent';
 import { utf8 } from "./utils";
+import { once } from "events";
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -154,10 +155,12 @@ export class DistroboxResolver {
 			}
 		}
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
-		const locker = guest.spawn_2("bash");
-		locker.write(`mkdir -p "${run_dir}"\n`);
-		locker.write(`exec 200>"${run_dir}/lock"\n`);
-		console.log(await locker.pipe_command("flock -x 200; echo locked\n"));
+		const locker = guest.exec("bash");
+		locker.child.stdin!.write(`mkdir -p "${run_dir}"\n`);
+		locker.child.stdin!.write(`exec 200>"${run_dir}/lock"\n`);
+		locker.child.stdin!.write("flock -x 200; echo locked\n");
+		await once(locker.child.stdout!, "readable");
+		console.log(locker.child.stdout?.read());
 
 		commands.push(
 			"mkdir",
@@ -195,7 +198,8 @@ export class DistroboxResolver {
 			await guest.exec("kill", `${pid}`);
 			port = "ERROR";
 		}
-		console.log(await locker.finish("flock -u 200; echo unlocked\n"));
+		locker.child.stdin!.end("flock -u 200; echo unlocked\n");
+		await locker;
 		return port;
 	}
 
@@ -209,10 +213,12 @@ export class DistroboxResolver {
 	public async find_running_server_port(): Promise<string> {
 		const guest = this.guest;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
-		const locker = guest.spawn_2("bash");
-		locker.write(`mkdir -p "${run_dir}"\n`);
-		locker.write(`exec 200>"${run_dir}/lock"\n`);
-		console.log(await locker.pipe_command("flock -x 200; echo locked\n"));
+		const locker = guest.exec("bash");
+		locker.child.stdin!.write(`mkdir -p "${run_dir}"\n`);
+		locker.child.stdin!.write(`exec 200>"${run_dir}/lock"\n`);
+		locker.child.stdin!.write("flock -x 200; echo locked\n");
+		await once(locker.child.stdout!, "readable");
+		console.log(locker.child.stdout!.read());
 		try {
 			const port_line = await guest.read_text_file(`${run_dir}/port`);
 			console.log(port_line);
@@ -240,15 +246,18 @@ export class DistroboxResolver {
 				const count = parseInt(await guest.read_text_file(`${run_dir}/count`), 10);
 				console.log(count);
 				await guest.write_to_file(`${run_dir}/count`, `${count + 1}`);
-				await locker.pipe_command("flock -u 200; echo unlocked\n");
+				locker.child.stdin!.end("flock -u 200; echo unlocked\n");
+				await locker;
 				return port_line;
 			} else {
-				await locker.finish("flock -u 200; echo unlocked\n");
+				locker.child.stdin!.end("flock -u 200; echo unlocked\n");
+				await locker;
 				return "NOT RUNNING";
 			}
 		} catch (e) {
 			console.log("port file not found");
-			await locker.finish("flock -u 200; echo unlocked\n");
+			locker.child.stdin!.end("flock -u 200; echo unlocked\n");
+			await locker;
 			return "NOT RUNNING";
 		}
 	}
@@ -266,7 +275,7 @@ export class DistroboxResolver {
 	public async shutdown_server() {
 		const guest = this.guest;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
-		const child = guest.spawn_2(
+		const child = guest.exec(
 			"bash",
 			"-c",
 			`cd "${run_dir}"; sleep 10; flock "./lock" -c 'count=$(($(cat ./count) - 1)); echo "$count" >./count; if [[ "$count" -eq 0 ]]; then pid=$(cat ./pid); kill $(ps --ppid "$pid" -o pid=); kill $"pid"; rm -f port count pid; fi'`
@@ -368,23 +377,22 @@ export class ServerInformation implements vscode.TreeDataProvider<string> {
 
 	static async from(resolver: DistroboxResolver): Promise<ServerInformation> {
 		const { guest, os, arch } = resolver;
-		const output = await guest.spawn_2("bash").finish(
-			`
+		const commands = `
 			RUN_DIR="$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(os, arch)}-${guest.name}"
 			echo $RUN_DIR
 			echo "$HOME/${server_binary_path(os, arch)}"
 			cat $RUN_DIR/port
 			cat $RUN_DIR/pid
 			ps --ppid $(cat $RUN_DIR/pid) -o pid=
-			`
-		);
+			`;
+		const output = await guest.exec_with_input(commands, "bash");
 		const [
 			server_runtime_directory,
 			server_path,
 			server_port,
 			server_pid1,
 			server_pid2,
-		] = utf8.decode(output.stdout).split('\n');
+		] = output.stdout.split('\n');
 
 		return new ServerInformation(
 			guest.name,

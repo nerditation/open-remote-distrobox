@@ -11,7 +11,6 @@ import * as vscode from "vscode";
 import which = require("which");
 
 import { CreateOptions, EnterCommandBuilder, MainCommandBuilder, RmCommandBuilder, RmOptions } from "./distrobox";
-import { PipedChildProcess, utf8 } from "./utils";
 import { promisify } from "util";
 
 const execFile = promisify(cp.execFile);
@@ -207,34 +206,13 @@ export class GuestDistro {
 		return terminal;
 	}
 
-	/**
-	 * wrapper for `distrobox enter` command using `child_process.spawn()`
-	 */
-	public spawn_2(...command: string[]): PipedChildProcess {
-		const argv = this.cmd.args(...command).build();
-		const argv0 = argv.shift()!;
-		return new PipedChildProcess(cp.spawn(argv0, argv));
-	}
-
 	public write_to_file(path: string, data: string | Uint8Array) {
 		// need bash for redirection, and variable expansion, such as "$XDG_RUNTIME_DIR"
-		const child = this.spawn_2("bash", "-c", `cat >"${path}"`);
-		return child.pipe(data);
-	}
-
-	public async write_to_executable(path: string, data: string | Uint8Array) {
-		await this.write_to_file(path, data);
-		return this.spawn_2("chmod", "+x", path).finish();
-	}
-
-	public read_binary_file(path: string): Promise<Uint8Array> {
-		// need bash for variable expansion, such as "$HOME", "$XDG_RUNTIME_DIR"
-		const child = this.spawn_2("bash", "-c", `cat "${path}"`);
-		return child.pipe();
+		return this.exec_with_input(data, "bash", "-c", `cat >"${path}"`);
 	}
 
 	public read_text_file(path: string): Promise<string> {
-		return this.read_binary_file(path).then(blob => utf8.decode(blob));
+		return this.exec("bash", "-c", `cat "${path}"`).then(output => output.stdout);
 	}
 
 	public async is_file(path: string): Promise<boolean> {
