@@ -165,19 +165,6 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 * - "ERROR", if failed to launch the server or find the port number
 	 */
 	public async try_start_new_server(): Promise<string> {
-		const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
-		const commands = [];
-		for (const name in env) {
-			const value = env[name];
-			if (typeof value == 'string') {
-				commands.push(`${name}="${value}"`);
-			} else if (value == true) {
-				const local_value = process.env[name];
-				if (local_value) {
-					commands.push(`${name}="${local_value}"`);
-				}
-			}
-		}
 		return (await this.guest.exec(this.control_script_path, "synchronized-start")).stdout;
 	}
 
@@ -311,6 +298,19 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 }
 
 function get_control_script(server_command_path: string) {
+	const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
+	const exports = [];
+	for (const name in env) {
+		const value = env[name];
+		if (typeof value == 'string') {
+			exports.push(`${name}="${value}"`);
+		} else if (value == true) {
+			const local_value = process.env[name];
+			if (local_value) {
+				exports.push(`${name}="${local_value}"`);
+			}
+		}
+	}
 	return `#!/bin/bash
 
 # configuration
@@ -383,15 +383,16 @@ disconnect_server() {
 
 # launch the process daemonized,
 start_server() {
-	nohup \
-		"$SERVER_COMMAND" \
-		--accept-server-license-terms \
-		--telemetry-level off \
-		--host localhost \
-		--port 0 \
-		--without-connection-token \
-		2>&1 \
-		>"$LOG_FILE" \
+	${exports.map(variable => "export " + variable).join("\n\t")}
+	nohup \\
+		"$SERVER_COMMAND" \\
+		--accept-server-license-terms \\
+		--telemetry-level off \\
+		--host localhost \\
+		--port 0 \\
+		--without-connection-token \\
+		2>&1 \\
+		>"$LOG_FILE" \\
 		&
 
 	# save the wrapper pid1, the node pid2 needs to be found later
