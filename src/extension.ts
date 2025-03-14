@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
 
-import { DistroboxResolver, ServerInformation } from './resolver';
+import { DistroboxResolver, } from './resolver';
 import { DistroManager, GuestDistro } from './agent';
 import { TargetsView } from './view';
 import { create_command, delete_command } from './extras';
@@ -70,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				const manager = await DistroManager.which();
 				const guest = await manager.get(guest_name);
 
-				const resolver = await DistroboxResolver.for_guest_distro(guest);
+				const resolver = await DistroboxResolver.create(guest);
 
 				const port = await resolver.resolve_server_port();
 				if (port) {
@@ -90,7 +90,7 @@ export async function activate(context: vscode.ExtensionContext) {
 						})
 					);
 					context.subscriptions.push(
-						vscode.window.registerTreeDataProvider("distrobox.server-info", await ServerInformation.from(resolver))
+						vscode.window.registerTreeDataProvider("distrobox.server-info", resolver)
 					);
 					return new vscode.ResolvedAuthority("localhost", port);
 				}
@@ -288,6 +288,6 @@ async function clear_command(name?: string) {
 		name = selected;
 	}
 	const guest = await manager.get(name);
-	const resolver = await DistroboxResolver.for_guest_distro(guest);
+	const resolver = await DistroboxResolver.create(guest);
 	await resolver.clear_session_files();
 }
