@@ -170,7 +170,7 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 				}
 			}
 		}
-		return (await this.guest.exec(this.control_script_path, "start")).stdout;
+		return (await this.guest.exec(this.control_script_path, "synchronized-start")).stdout;
 	}
 
 	/**
@@ -181,7 +181,7 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 * - "NOT RUNNING"
 	 */
 	public async find_running_server_port(): Promise<string> {
-		return (await this.guest.exec(this.control_script_path, "connect")).stdout;
+		return (await this.guest.exec(this.control_script_path, "synchronized-connect")).stdout;
 	}
 
 	/**
@@ -195,7 +195,7 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 * shutdown the server, will be called in `extension.deactivate()`
 	 */
 	public shutdown_server() {
-		this.guest.exec(this.control_script_path, "disconnect",).child.unref();
+		this.guest.exec(this.control_script_path, "synchronized-disconnect",).child.unref();
 	}
 
 	/**
@@ -435,6 +435,19 @@ install_server() {
 	exec tar -xz -C "$SERVER_INSTALL_DIR"
 }
 
+
+# first try to connect, if failed, then try to start new
+# intended to be called holding a lock
+connect_or_start_server() {
+	PORT=$(connect_server)
+	if [[ "$PORT" =~ ^[0-9]+$ ]]; then
+		echo $PORT
+	else
+		start_server 10
+	fi
+}
+
+
 # Command-line argument handling
 case "$1" in
 	connect)
@@ -449,11 +462,24 @@ case "$1" in
 	stop)
 		stop_server
 		;;
+	connect-or-start)
+		connect_or_start_server
+		;;
 	install)
 		install_server
 		;;
 	-h|--help)
 		echo "Usage: $0 {connect|disconnect|start|stop}"
+		;;
+	synchronized-connect)
+		flock -o "$SESSION_DIR" "$0" connect
+		;;
+	synchronized-disconnect)
+		sleep \${2:-5}
+		flock -o "$SESSION_DIR" "$0" disconnect 0
+		;;
+	synchronized-start)
+		flock -o "$SESSION_DIR" "$0" connect-or-start
 		;;
 	*)
 		status
