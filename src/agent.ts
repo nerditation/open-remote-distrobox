@@ -232,7 +232,6 @@ export class GuestDistro {
 		const argv = this.cmd.args(...command).build();
 		const argv0 = argv.shift()!;
 		const promise = execFile(argv0, argv);
-		promise.child.stdin?.end();
 		return promise;
 	}
 

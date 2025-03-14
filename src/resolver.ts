@@ -25,8 +25,8 @@ import * as vscode from 'vscode';
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 import { arch } from 'os';
 import { DistroManager, GuestDistro } from './agent';
-import { utf8 } from "./utils";
 import { once } from "events";
+import { PromiseWithChild } from "child_process";
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -155,12 +155,9 @@ export class DistroboxResolver {
 			}
 		}
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
-		const locker = guest.exec("bash");
-		locker.child.stdin!.write(`mkdir -p "${run_dir}"\n`);
-		locker.child.stdin!.write(`exec 200>"${run_dir}/lock"\n`);
-		locker.child.stdin!.write("flock -x 200; echo locked\n");
-		await once(locker.child.stdout!, "readable");
-		console.log(locker.child.stdout?.read());
+
+		const critical_section = CriticalSection.create(guest, `${run_dir}/lock`);
+		await critical_section.enter();
 
 		commands.push(
 			"mkdir",
@@ -198,8 +195,9 @@ export class DistroboxResolver {
 			await guest.exec("kill", `${pid}`);
 			port = "ERROR";
 		}
-		locker.child.stdin!.end("flock -u 200; echo unlocked\n");
-		await locker;
+
+		await critical_section.dispose();
+
 		return port;
 	}
 
@@ -213,12 +211,10 @@ export class DistroboxResolver {
 	public async find_running_server_port(): Promise<string> {
 		const guest = this.guest;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
-		const locker = guest.exec("bash");
-		locker.child.stdin!.write(`mkdir -p "${run_dir}"\n`);
-		locker.child.stdin!.write(`exec 200>"${run_dir}/lock"\n`);
-		locker.child.stdin!.write("flock -x 200; echo locked\n");
-		await once(locker.child.stdout!, "readable");
-		console.log(locker.child.stdout!.read());
+
+		const critical_section = CriticalSection.create(guest, `${run_dir}/lock`);
+		await critical_section.enter();
+
 		try {
 			const port_line = await guest.read_text_file(`${run_dir}/port`);
 			console.log(port_line);
@@ -246,18 +242,15 @@ export class DistroboxResolver {
 				const count = parseInt(await guest.read_text_file(`${run_dir}/count`), 10);
 				console.log(count);
 				await guest.write_to_file(`${run_dir}/count`, `${count + 1}`);
-				locker.child.stdin!.end("flock -u 200; echo unlocked\n");
-				await locker;
+				await critical_section.dispose();
 				return port_line;
 			} else {
-				locker.child.stdin!.end("flock -u 200; echo unlocked\n");
-				await locker;
+				await critical_section.dispose();
 				return "NOT RUNNING";
 			}
 		} catch (e) {
 			console.log("port file not found");
-			locker.child.stdin!.end("flock -u 200; echo unlocked\n");
-			await locker;
+			await critical_section.dispose();
 			return "NOT RUNNING";
 		}
 	}
@@ -321,6 +314,36 @@ export class DistroboxResolver {
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
 		const pid = await guest.read_text_file(`${run_dir}/pid`);
 		await guest.exec("bash", "-c", `flock "${run_dir}/lock" -c 'kill $(ps --ppid "${pid}" -o pid=); kill "${pid}"; rm -f "${run_dir}/port" "${run_dir}/pid" "${run_dir}/count"'`);
+	}
+}
+
+class CriticalSection {
+	constructor(
+		public shell: PromiseWithChild<any>
+	) {
+	}
+
+	static create(guest: GuestDistro, path: string): CriticalSection {
+		const shell = guest.exec("bash");
+		shell.child.stdin!.write(`exec 200>"${path}"\n`);
+		return new CriticalSection(shell);
+	}
+
+	async enter() {
+		this.shell.child.stdin!.write("flock -x 200; echo locked\n");
+		await once(this.shell.child.stdout!, "readable");
+		console.log(this.shell.child.stdout!.read());
+	}
+
+	async leave() {
+		this.shell.child.stdin!.write("flock -u 200; echo unlocked\n");
+		await once(this.shell.child.stdout!, "readable");
+		console.log(this.shell.child.stdout!.read());
+	}
+
+	async dispose() {
+		this.shell.child.stdin!.end("flock -u 200; exec 200>&-\n");
+		await this.shell;
 	}
 }
 
