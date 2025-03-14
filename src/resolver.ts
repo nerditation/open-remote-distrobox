@@ -27,6 +27,7 @@ import { arch } from 'os';
 import { DistroManager, GuestDistro } from './agent';
 import { once } from "events";
 import { PromiseWithChild } from "child_process";
+import { delay_millis } from "./utils";
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -173,10 +174,10 @@ export class DistroboxResolver {
 			"--without-connection-token",
 			`>"${run_dir}/log"`,
 		);
-		const pid = (await guest.exec("bash", "-c", `(echo $BASHPID; ${commands.join(' ')})&`)).stdout;
-		console.log(pid);
+		const nohup = guest.exec("bash", "-c", `(echo $BASHPID; ${commands.join(' ')})&`);
 		let port;
-		for (let i = 0; i < 5; ++i) {
+		for (let i = 0; i < 10; ++i) {
+			await delay_millis(50);
 			const output = await guest.read_text_file(`${run_dir}/log`);
 			const match = output.match(/Extension host agent listening on ([0-9]+)/);
 			if (match) {
@@ -185,19 +186,25 @@ export class DistroboxResolver {
 			}
 		}
 		if (port) {
-			await guest.write_to_file(`${run_dir}/pid`, `${pid}`);
-			await guest.write_to_file(`${run_dir}/count`, "1");
-			await guest.write_to_file(`${run_dir}/port`, port);
+			// return the resolved port early
+			// save session states in background
+			(async () => {
+				const pid = (await nohup).stdout;
+				await guest.write_to_file(`${run_dir}/pid`, `${pid}`);
+				await guest.write_to_file(`${run_dir}/count`, "1");
+				await guest.write_to_file(`${run_dir}/port`, port);
+				await critical_section.dispose();
+				console.log("session saved");
+			})();
+			return port;
 		} else {
+			const pid = (await nohup).stdout;
 			const subpid = (await guest.exec("ps", "--ppid", `${pid}`, "-o", "pid=")).stdout;
 			await guest.exec("kill", subpid);
 			await guest.exec("kill", `${pid}`);
-			port = "ERROR";
+			critical_section.dispose();
+			return "ERROR";
 		}
-
-		await critical_section.dispose();
-
-		return port;
 	}
 
 	/**
@@ -214,10 +221,19 @@ export class DistroboxResolver {
 		const critical_section = CriticalSection.create(guest, `${run_dir}/lock`);
 		await critical_section.enter();
 
+		let port;
 		try {
-			const port_line = await guest.read_text_file(`${run_dir}/port`);
-			console.log(port_line);
-			const port = parseInt(port_line, 10);
+			port = await guest.read_text_file(`${run_dir}/port`);
+		} catch (e) {
+			console.log("can't read port file", e);
+			// no need to await, should eventually unlock
+			critical_section.dispose();
+			return "NOT RUNNING";
+		}
+		// return the port number optimistically
+		// do bookkeepping in the background
+		// prompt the user if something goes wrong
+		(async () => {
 			const socket = new net.Socket();
 			socket.setTimeout(2000);
 			const can_connect = await new Promise<boolean>((resolve, reject) => {
@@ -235,23 +251,27 @@ export class DistroboxResolver {
 					console.log(`Error connecting to ${port} - Port is closed (${err.message})`);
 					resolve(false);
 				});
-				socket.connect(port, "localhost");
+				socket.connect(parseInt(port, 10), "localhost");
 			});
 			if (can_connect) {
 				const count = parseInt(await guest.read_text_file(`${run_dir}/count`), 10);
-				console.log(count);
 				await guest.write_to_file(`${run_dir}/count`, `${count + 1}`);
 				await critical_section.dispose();
-				return port_line;
+				console.log("server port checked");
 			} else {
 				await critical_section.dispose();
-				return "NOT RUNNING";
+				await this.clear_session_files();
+				const choice = await vscode.window.showErrorMessage(
+					"previous session did NOT properly shutdown, it has been cleared, please try again.",
+					"Close Remote Connection NOW"
+				);
+				if (choice) {
+					console.log("closing");
+					await vscode.commands.executeCommand("workbench.action.remote.close");
+				}
 			}
-		} catch (e) {
-			console.log("port file not found");
-			await critical_section.dispose();
-			return "NOT RUNNING";
-		}
+		})();
+		return port;
 	}
 
 	/**
@@ -311,8 +331,13 @@ export class DistroboxResolver {
 	public async clear_session_files() {
 		const { guest, os, arch } = this;
 		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(this.os, this.arch)}-${guest.name}`;
-		const pid = await guest.read_text_file(`${run_dir}/pid`);
-		await guest.exec("bash", "-c", `flock "${run_dir}/lock" -c 'kill $(ps --ppid "${pid}" -o pid=); kill "${pid}"; rm -f "${run_dir}/port" "${run_dir}/pid" "${run_dir}/count"'`);
+		try {
+			await guest.exec("bash", "-c", `cd "${run_dir}"; rm -f port count`);
+			const pid = await guest.read_text_file(`${run_dir}/pid`);
+			await guest.exec("bash", "-c", `kill $(ps --ppid "${pid}" -o pid=); kill "${pid}"`);
+		} catch (e) {
+			console.log("no pid file or kill command error", e);
+		}
 	}
 }
 

@@ -9,3 +9,9 @@ import { ChildProcessWithoutNullStreams } from "child_process";
 import { once } from "events";
 
 export const utf8 = new TextDecoder("utf8");
+
+export function delay_millis(millis: number): Promise<void> {
+	return new Promise((resolve, reject) => {
+		setTimeout(resolve, millis);
+	});
+}
