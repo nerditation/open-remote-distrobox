@@ -430,7 +430,7 @@ stop_server() {
 # extract the server tarball
 install_server() {
 	# SERVER_COMMAND is in the format $HOME/.vscodium-server/bin/codium-reh-OS-VERSION/bin/codium-server
-	SERVER_INSTALL_DIR="$(realpath "$(dirname "$SERVER_COMMAND")/..")"
+	SERVER_INSTALL_DIR="$(dirname "$(dirname "$SERVER_COMMAND")")"
 	mkdir -p "$SERVER_INSTALL_DIR"
 	exec tar -xz -C "$SERVER_INSTALL_DIR"
 }
