@@ -73,6 +73,9 @@ export class DistroboxResolver {
 		} else {
 			throw ("distro's libc is neither musl nor glibc");
 		}
+		const run_dir = `$XDG_RUNTIME_DIR/vscodium-reh-${system_identifier(resolver.os, resolver.arch)}-${guest.name}`;
+		// need bash for the variable expansion of `$XDG_RUNTIME_DIR
+		await guest.exec("bash", "-c", `mkdir -p "${run_dir}"`);
 		return resolver;
 	}
 
@@ -84,11 +87,11 @@ export class DistroboxResolver {
 	 *
 	 * @param buffer raw bytes (in chunks) of the `gzip` compressed tarball
 	 */
-	public async extract_server_tarball(buffer: Uint8Array[]) {
+	public async extract_server_tarball(buffer: Uint8Array) {
 		const { guest, os, arch } = this;
 		const path = server_extract_path(os, arch);
 		await guest.exec_with_input(
-			Buffer.concat(buffer),
+			buffer,
 			"bash",
 			"-c",
 			`mkdir -p "${path}"; tar -xz -C "${path}"`
@@ -160,10 +163,6 @@ export class DistroboxResolver {
 		await critical_section.enter();
 
 		commands.push(
-			"mkdir",
-			"-p",
-			`"${run_dir}"`,
-			";",
 			"exec",
 			"nohup",
 			`$HOME/${server_binary_path(this.os, this.arch)}`,
@@ -292,7 +291,7 @@ export class DistroboxResolver {
 
 		if (!await this.is_server_installed()) {
 			const buffer: Uint8Array[] = await this.download_server_tarball();
-			await this.extract_server_tarball(buffer);
+			await this.extract_server_tarball(Buffer.concat(buffer));
 		}
 
 		const new_port = parseInt((await this.try_start_new_server()), 10);
