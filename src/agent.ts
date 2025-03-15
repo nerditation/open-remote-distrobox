@@ -54,11 +54,13 @@ export class DistroManager {
 	 * - if inside a distrobox guest, use `distrobox-host-exec distrobox`
 	 */
 	public static async which(): Promise<DistroManager> {
-		let argv;
+		const with_argv = (...argv: string[]) => {
+			return new DistroManager(new MainCommandBuilder(...argv));
+		};
 		try {
 			const distrobox_path = await which('distrobox');
 			console.log(`found distrobox: ${distrobox_path}`);
-			argv = [distrobox_path];
+			return with_argv(distrobox_path);
 		} catch {
 			console.log("local distrobox not found");
 		}
@@ -78,7 +80,7 @@ export class DistroManager {
 					});
 			});
 			console.log(`found distrobox on container host: ${banner}`);
-			argv = [host_spawn_path, "--no-pty", "distrobox"];
+			return with_argv(host_spawn_path, "--no-pty", "distrobox");
 		} catch {
 			console.log("didn't find distrobox with host-spawn");
 		}
@@ -98,21 +100,18 @@ export class DistroManager {
 					});
 			});
 			console.log(`found distrobox on flatpak host: ${banner}`);
-			argv = [flatpak_spawn_path, '--host', 'distrobox'];
+			return with_argv(flatpak_spawn_path, '--host', 'distrobox');
 		} catch {
 			console.log("didn't find distrobox on flatpak host");
 		}
 		try {
 			const distrobox_host_exec_path = await which('distrobox-host-exec');
 			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`);
-			argv = [distrobox_host_exec_path, 'distrobox'];
+			return with_argv(distrobox_host_exec_path, 'distrobox');
 		} catch {
 			console.log("not inside distrobox guest");
 		}
-		if (!argv) {
-			throw ("didn't find distrobox command");
-		}
-		return new DistroManager(new MainCommandBuilder(...argv));
+		throw ("didn't find distrobox command");
 	}
 
 	/**
