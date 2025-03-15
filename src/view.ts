@@ -73,6 +73,48 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 	}
 }
 
+
+/**
+ * the `Details` section of the remote explorer view
+ */
+export class DetailsView implements vscode.TreeDataProvider<string> {
+
+	constructor(
+		public guest: GuestDistro,
+		public guest_os: string,
+		public guest_arch: string,
+		public control_script_path: string,
+		public server_command_path: string,
+		public server_download_url: string,
+		public server_session_dir: string,
+		public server_port: number,
+	) {
+	}
+
+	async getChildren(element?: string | undefined): Promise<string[]> {
+		if (element) {
+			return [];
+		} else {
+			return [
+				`guest name: ${this.guest.name}`,
+				`guest os: ${this.guest_os}`,
+				`guest architecture: ${this.guest_arch}`,
+				"----------------",
+				`server session directory: ${this.server_session_dir}`,
+				`server path: ${this.server_command_path}`,
+				`server port: ${this.server_port}`,
+				`server pid (wrapper): ${(await this.guest.read_text_file(`${this.server_session_dir}/pid1`)).trim()}`,
+				`server pid (node): ${(await this.guest.read_text_file(`${this.server_session_dir}/pid2`)).trim()}`,
+				``
+			];
+		}
+	}
+
+	getTreeItem(element: string): vscode.TreeItem {
+		return new vscode.TreeItem(element);
+	}
+}
+
 export function register_remote_explorer_view(g: ExtensionGlobals) {
 	const targets_view = new TargetsView(g.container_manager);
 	g.context.subscriptions.push(

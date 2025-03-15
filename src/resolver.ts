@@ -19,28 +19,22 @@
  * different default shell, such as `alpine` linux
  */
 
-import * as net from "net";
 
 import * as vscode from 'vscode';
 import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
 import { arch as node_arch } from 'os';
 import { DistroManager, GuestDistro } from './agent';
-import { once } from "events";
-import { PromiseWithChild } from "child_process";
-import { delay_millis } from "./utils";
-import { disconnect } from "process";
 import { ExtensionGlobals } from "./extension";
-
-const extension = vscode.extensions.getExtension("nerditation.open-remote-distrobox");
+import { DetailsView } from './view';
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
  *
  * the name is not very descriptive, but I don't know what's better
  */
-export class DistroboxResolver implements vscode.TreeDataProvider<string> {
-	public server_port?: number;
+export class DistroboxResolver {
 	private constructor(
+		public g: ExtensionGlobals,
 		public guest: GuestDistro,
 		public guest_os: string,
 		public guest_arch: string,
@@ -63,7 +57,7 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 * @param name the name of the guest container
 	 * @returns a promise that resolves to `Self`
 	 */
-	public static async create(guest: GuestDistro): Promise<DistroboxResolver> {
+	public static async create(g: ExtensionGlobals, guest: GuestDistro): Promise<DistroboxResolver> {
 		let ldd_info;
 		try {
 			ldd_info = (await guest.exec("bash", "-c", "ldd --version 2>&1")).stdout;
@@ -94,12 +88,13 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 		const xdg_runtime_dir = (await guest.exec("bash", "-c", 'echo "$XDG_RUNTIME_DIR"')).stdout.trim();
 		const server_session_dir = `${xdg_runtime_dir}/vscodium-reh-${system_identifier(os, arch)}-${guest.name}`;
 		const server_command_path = `$HOME/${server_binary_path(os, arch)}`;
-		const control_script_path = `${server_session_dir}/control-${extension?.packageJSON.version}.sh`;
+		const control_script_path = `${server_session_dir}/control-${g.context.extension.packageJSON.version}.sh`;
 		const control_script = get_control_script(server_command_path);
 		await guest.exec("mkdir", "-p", server_session_dir);
 		await guest.write_to_file(control_script_path, control_script);
 		await guest.exec("chmod", "+x", control_script_path);
 		return new DistroboxResolver(
+			g,
 			guest,
 			os,
 			arch,
@@ -152,7 +147,7 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 				});
 				buffer.push(bytes);
 			}
-			console.log("download successful");
+			this.g.logger.appendLine("download successful");
 			return buffer;
 		});
 	}
@@ -200,15 +195,15 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 * this is called by `vscode.RemoteAuthorityResolver.resolve()`
 	 */
 	public async resolve_server_port(): Promise<number | undefined> {
-		console.log(`resolving distrobox guest: ${this.guest.name}`);
+		const logger = this.g.logger;
+		logger.appendLine(`resolving distrobox guest: ${this.guest.name}`);
 
 		let port;
 		const running_port = await this.find_running_server_port();
-		console.log("running port", running_port);
+		logger.appendLine(`running port: ${running_port}`);
 		port = parseInt(running_port, 10);
 		if (!isNaN(port)) {
-			this.server_port = port;
-			console.log(`running server listening at ${running_port}`);
+			logger.appendLine(`running server listening at ${running_port}`);
 			return port;
 		}
 
@@ -218,11 +213,10 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 		}
 
 		const new_port = await this.try_start_new_server();
-		console.log("new port", new_port);
+		logger.appendLine(`new port: ${new_port}`);
 		port = parseInt(new_port, 10);
 		if (!isNaN(port)) {
-			this.server_port = port;
-			console.log(`new server started at ${new_port}`);
+			logger.appendLine(`new server started at ${new_port}`);
 			return port;
 		}
 	}
@@ -236,29 +230,6 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 	 */
 	public async clear_session_files() {
 		this.guest.exec(this.control_script_path, "stop",).child.unref();
-	}
-
-	async getChildren(element?: string | undefined): Promise<string[]> {
-		if (element) {
-			return [];
-		} else {
-			return [
-				`guest name: ${this.guest.name}`,
-				`guest os: ${this.guest_os}`,
-				`guest architecture: ${this.guest_arch}`,
-				"----------------",
-				`server session directory: ${this.server_session_dir}`,
-				`server path: ${this.server_command_path}`,
-				`server port: ${this.server_port ?? "0"}`,
-				`server pid (wrapper): ${(await this.guest.read_text_file(`${this.server_session_dir}/pid1`)).trim()}`,
-				`server pid (node): ${(await this.guest.read_text_file(`${this.server_session_dir}/pid2`)).trim()}`,
-				``
-			];
-		}
-	}
-
-	getTreeItem(element: string): vscode.TreeItem {
-		return new vscode.TreeItem(element);
 	}
 
 	public dispose() {
@@ -513,7 +484,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 	) {
 	}
 
-	async resolve(authority: any, _context: any) {
+	async resolve(authority: string, _context: vscode.RemoteAuthorityResolverContext) {
 		const g = this.g;
 		g.logger.appendLine(`resolving ${authority}`);
 
@@ -522,7 +493,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 		const manager = await DistroManager.which();
 		const guest = await manager.get(guest_name);
 
-		const resolver = await DistroboxResolver.create(guest);
+		const resolver = await DistroboxResolver.create(g, guest);
 
 		const port = await resolver.resolve_server_port();
 		if (port) {
@@ -541,8 +512,18 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 					}
 				})
 			);
+			const details_view = new DetailsView(
+				guest,
+				resolver.guest_os,
+				resolver.guest_arch,
+				resolver.control_script_path,
+				resolver.server_command_path,
+				resolver.server_download_url,
+				resolver.server_session_dir,
+				port,
+			);
 			g.context.subscriptions.push(
-				vscode.window.registerTreeDataProvider("distrobox.server-info", resolver)
+				vscode.window.registerTreeDataProvider("distrobox.server-info", details_view)
 			);
 			return new vscode.ResolvedAuthority("localhost", port);
 		}
@@ -550,7 +531,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 	}
 
 	// distrobox guests share the host network, so port forwarding is just nop
-	tunnelFactory(tunnelOptions: any, tunnelCreationOptions: any): Thenable<vscode.Tunnel> | undefined {
+	tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Thenable<vscode.Tunnel> | undefined {
 		const host = tunnelOptions.remoteAddress.host;
 		// this should be unnecessary, I'm just paranoid, just in case.
 		if (host != "localhost"
@@ -559,7 +540,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 			&& host != "*"
 			&& host != "0.0.0.0"
 			&& host != "::") {
-			console.log(`forwarding port for ${host}`);
+			this.g.logger.appendLine(`forwarding port for ${host}`);
 			return undefined;
 		}
 		return new Promise((resolve, reject) => {

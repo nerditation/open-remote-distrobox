@@ -62,7 +62,26 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.clear-crashed-session", clear_command)
+		vscode.commands.registerCommand("open-remote-distrobox.clear-crashed-session",
+			async (name?: string) => {
+				const manager = g.container_manager;
+				if (!name) {
+					const selected = await vscode.window.showQuickPick(
+						list_guest_distros(),
+						{
+							canPickMany: false
+						}
+					);
+					if (!selected) {
+						return;
+					}
+					name = selected;
+				}
+				const guest = await manager.get(name);
+				const resolver = await DistroboxResolver.create(g, guest);
+				await resolver.clear_session_files();
+			}
+		)
 	);
 }
 
@@ -202,23 +221,4 @@ async function list_guest_distros(): Promise<string[]> {
 function strip_prefix(subject: string, prefix: string): string {
 	console.assert(subject.startsWith(prefix));
 	return subject.slice(prefix.length);
-}
-
-async function clear_command(name?: string) {
-	const manager = await DistroManager.which();
-	if (!name) {
-		const selected = await vscode.window.showQuickPick(
-			list_guest_distros(),
-			{
-				canPickMany: false
-			}
-		);
-		if (!selected) {
-			return;
-		}
-		name = selected;
-	}
-	const guest = await manager.get(name);
-	const resolver = await DistroboxResolver.create(guest);
-	await resolver.clear_session_files();
 }
