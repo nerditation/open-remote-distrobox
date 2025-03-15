@@ -11,22 +11,32 @@ import * as os from 'os';
 
 import { DistroboxResolver, } from './resolver';
 import { DistroManager, GuestDistro } from './agent';
-import { TargetsView } from './view';
+import { register_remote_explorer_view, TargetsView } from './view';
 import { create_command, delete_command } from './extras';
 
 // `context.subscriptions` does NOT await async operations
 // have to use the `deactivate()` hook
 const resolved: DistroboxResolver[] = [];
 
+/**
+ * the memto `ExtensionContext.globalState` can only store serailizable data,
+ * I want to proper encapsulation of the "global" state for the entire exension
+ */
+export interface ExtensionGlobals {
+	context: vscode.ExtensionContext,
+	container_manager: DistroManager,
+	logger: vscode.LogOutputChannel,
+}
+
 export async function activate(context: vscode.ExtensionContext) {
-	const manager = await DistroManager.which();
 
-	const targets_view = new TargetsView(context, manager);
-	context.subscriptions.push(targets_view);
+	const g: ExtensionGlobals = {
+		context,
+		container_manager: await DistroManager.which(),
+		logger: vscode.window.createOutputChannel("Distrobox", { log: true })
+	};
 
-	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider("distrobox.guests", targets_view)
-	);
+	register_remote_explorer_view(g);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command("current"))
@@ -38,10 +48,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", reopen_command)
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.refresh", () => targets_view.refresh())
 	);
 
 	context.subscriptions.push(

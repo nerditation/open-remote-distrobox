@@ -13,6 +13,7 @@
 
 import * as vscode from 'vscode';
 import { DistroManager, GuestDistro } from './agent';
+import { ExtensionGlobals } from './extension';
 
 
 /**
@@ -28,7 +29,6 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 	onDidChangeTreeData: vscode.Event<void> = this.refresh_request.event;
 
 	constructor(
-		public context: vscode.ExtensionContext,
 		public manager: DistroManager,
 	) {
 	}
@@ -71,4 +71,13 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 	public refresh() {
 		this.refresh_request.fire();
 	}
+}
+
+export function register_remote_explorer_view(g: ExtensionGlobals) {
+	const targets_view = new TargetsView(g.container_manager);
+	g.context.subscriptions.push(
+		targets_view,
+		vscode.window.registerTreeDataProvider("distrobox.guests", targets_view),
+		vscode.commands.registerCommand("open-remote-distrobox.refresh", () => targets_view.refresh())
+	);
 }
