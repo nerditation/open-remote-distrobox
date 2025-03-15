@@ -9,14 +9,11 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
 
-import { DistroboxResolver, } from './resolver';
+import { DistroboxResolver, register_distrobox_remote_authority_resolver, } from './resolver';
 import { DistroManager, GuestDistro } from './agent';
 import { register_remote_explorer_view, TargetsView } from './view';
 import { create_command, delete_command } from './extras';
 
-// `context.subscriptions` does NOT await async operations
-// have to use the `deactivate()` hook
-const resolved: DistroboxResolver[] = [];
 
 /**
  * the memto `ExtensionContext.globalState` can only store serailizable data,
@@ -37,6 +34,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	};
 
 	register_remote_explorer_view(g);
+
+	register_distrobox_remote_authority_resolver(g);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command("current"))
@@ -65,82 +64,8 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.clear-crashed-session", clear_command)
 	);
-
-	context.subscriptions.push(
-		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
-			async resolve(authority, _context) {
-				console.log(`resolving ${authority}`);
-
-				const [_remote, guest_name_encoded] = authority.split('+', 2);
-				const guest_name = decodeURIComponent(guest_name_encoded);
-				const manager = await DistroManager.which();
-				const guest = await manager.get(guest_name);
-
-				const resolver = await DistroboxResolver.create(guest);
-
-				const port = await resolver.resolve_server_port();
-				if (port) {
-					resolved.push(resolver);
-					context.subscriptions.push(
-						vscode.workspace.registerResourceLabelFormatter({
-							scheme: 'vscode-remote',
-							authority: 'distrobox+*',
-							formatting: {
-								label: "${path}",
-								separator: "/",
-								tildify: true,
-								normalizeDriveLetter: false,
-								workspaceSuffix: `distrobox: ${guest_name}`,
-								workspaceTooltip: `Connected to ${guest_name}`
-							}
-						})
-					);
-					context.subscriptions.push(
-						vscode.window.registerTreeDataProvider("distrobox.server-info", resolver)
-					);
-					return new vscode.ResolvedAuthority("localhost", port);
-				}
-				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro");
-			},
-
-			// distrobox guests share the host network, so port forwarding is just nop
-			tunnelFactory(tunnelOptions, tunnelCreationOptions): Thenable<vscode.Tunnel> | undefined {
-				const host = tunnelOptions.remoteAddress.host;
-				// this should be unnecessary, I'm just paranoid, just in case.
-				if (host != "localhost"
-					&& host != "127.0.0.1"
-					&& host != "::1"
-					&& host != "*"
-					&& host != "0.0.0.0"
-					&& host != "::") {
-					console.log(`forwarding port for ${host}`);
-					return undefined;
-				}
-				return new Promise((resolve, reject) => {
-					const dispose_event = new vscode.EventEmitter<void>();
-					resolve({
-						remoteAddress: tunnelOptions.remoteAddress,
-						protocol: tunnelOptions.protocol,
-						localAddress: tunnelOptions.remoteAddress,
-						onDidDispose: dispose_event.event,
-						dispose() {
-							dispose_event.fire();
-							dispose_event.dispose;
-						}
-					});
-				});
-			},
-		})
-	);
-
 }
 
-export async function deactivate() {
-	console.log("deactivation");
-	for (const resolver of resolved) {
-		await resolver.shutdown_server();
-	}
-}
 
 function connect_command(window: 'current' | 'new') {
 	return async (guest?: string | GuestDistro) => {

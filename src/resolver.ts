@@ -29,6 +29,7 @@ import { once } from "events";
 import { PromiseWithChild } from "child_process";
 import { delay_millis } from "./utils";
 import { disconnect } from "process";
+import { ExtensionGlobals } from "./extension";
 
 const extension = vscode.extensions.getExtension("nerditation.open-remote-distrobox");
 
@@ -258,6 +259,10 @@ export class DistroboxResolver implements vscode.TreeDataProvider<string> {
 
 	getTreeItem(element: string): vscode.TreeItem {
 		return new vscode.TreeItem(element);
+	}
+
+	public dispose() {
+		this.shutdown_server();
 	}
 }
 
@@ -495,4 +500,75 @@ case "$1" in
 		;;
 esac
 `;
+}
+
+export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals) {
+
+	g.context.subscriptions.push(
+		vscode.workspace.registerRemoteAuthorityResolver("distrobox", {
+			async resolve(authority, _context) {
+				g.logger.appendLine(`resolving ${authority}`);
+
+				const [_remote, guest_name_encoded] = authority.split('+', 2);
+				const guest_name = decodeURIComponent(guest_name_encoded);
+				const manager = await DistroManager.which();
+				const guest = await manager.get(guest_name);
+
+				const resolver = await DistroboxResolver.create(guest);
+
+				const port = await resolver.resolve_server_port();
+				if (port) {
+					g.context.subscriptions.push(resolver);
+					g.context.subscriptions.push(
+						vscode.workspace.registerResourceLabelFormatter({
+							scheme: 'vscode-remote',
+							authority: 'distrobox+*',
+							formatting: {
+								label: "${path}",
+								separator: "/",
+								tildify: true,
+								normalizeDriveLetter: false,
+								workspaceSuffix: `distrobox: ${guest_name}`,
+								workspaceTooltip: `Connected to ${guest_name}`
+							}
+						})
+					);
+					g.context.subscriptions.push(
+						vscode.window.registerTreeDataProvider("distrobox.server-info", resolver)
+					);
+					return new vscode.ResolvedAuthority("localhost", port);
+				}
+				throw vscode.RemoteAuthorityResolverError.TemporarilyNotAvailable("failed to launch server in guest distro");
+			},
+
+			// distrobox guests share the host network, so port forwarding is just nop
+			tunnelFactory(tunnelOptions, tunnelCreationOptions): Thenable<vscode.Tunnel> | undefined {
+				const host = tunnelOptions.remoteAddress.host;
+				// this should be unnecessary, I'm just paranoid, just in case.
+				if (host != "localhost"
+					&& host != "127.0.0.1"
+					&& host != "::1"
+					&& host != "*"
+					&& host != "0.0.0.0"
+					&& host != "::") {
+					console.log(`forwarding port for ${host}`);
+					return undefined;
+				}
+				return new Promise((resolve, reject) => {
+					const dispose_event = new vscode.EventEmitter<void>();
+					resolve({
+						remoteAddress: tunnelOptions.remoteAddress,
+						protocol: tunnelOptions.protocol,
+						localAddress: tunnelOptions.remoteAddress,
+						onDidDispose: dispose_event.event,
+						dispose() {
+							dispose_event.fire();
+							dispose_event.dispose;
+						}
+					});
+				});
+			},
+		})
+	);
+
 }
