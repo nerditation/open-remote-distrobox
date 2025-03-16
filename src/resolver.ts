@@ -21,11 +21,12 @@
 
 
 import * as vscode from 'vscode';
-import { server_binary_path, server_download_url, server_extract_path, system_identifier } from './remote';
+import { server_binary_path, server_download_url, system_identifier } from './remote';
 import { arch as node_arch } from 'os';
 import { DistroManager, GuestDistro } from './agent';
 import { ExtensionGlobals } from "./extension";
 import { DetailsView } from './view';
+import { detect_platform, download_server_tarball } from './setup';
 
 /**
  * this is the class that "does the actual work", a.k.a. business logic
@@ -106,122 +107,6 @@ export class DistroboxResolver {
 	}
 
 	/**
-	 * pipe the tarball to a `tar` command running in the guest.
-	 *
-	 * since the data is downloaded from the internet, it's convenient to use
-	 * an array of chunks as arguments.
-	 *
-	 * @param buffer raw bytes (in chunks) of the `gzip` compressed tarball
-	 */
-	public async extract_server_tarball(buffer: Uint8Array) {
-		await this.guest.exec_with_input(buffer, this.control_script_path, "install");
-	}
-
-	/**
-	 * download the server from the internet using the `fetch` API
-	 *
-	 * @returns the file contents in chunks of unspecified sizes
-	 */
-	public async download_server_tarball(): Promise<Uint8Array[]> {
-		return vscode.window.withProgress({
-			location: vscode.ProgressLocation.Notification,
-			title: "downloading vscodium remote server",
-		}, async (progress, candel) => {
-			progress.report({
-				message: "connecting to server..."
-			});
-			const downloader = await fetch(this.server_download_url);
-			if (downloader.status != 200) {
-				throw `${downloader.status} ${this.server_download_url}`;
-			}
-			// TODO: what if server didn't send `Content-Length` header?
-			const total_size = parseInt((downloader.headers.get('Content-Length')!), 10);
-			progress.report({
-				message: "transferring data..."
-			});
-			const buffer: Uint8Array[] = [];
-			for await (const chunk of downloader.body!) {
-				const bytes = chunk as Uint8Array;
-				progress.report({
-					increment: bytes.length * 100 / total_size
-				});
-				buffer.push(bytes);
-			}
-			this.g.logger.appendLine("download successful");
-			return buffer;
-		});
-	}
-
-	/**
-	 * try to start a new server process and find the port number
-	 *
-	 * @returns the `stdout` of the launch script, can be one of:
-	 * - a tcp port number on success
-	 * - "NOT INSTALLED", if the server binary is not installed
-	 * - "ERROR", if failed to launch the server or find the port number
-	 */
-	public async try_start_new_server(): Promise<string> {
-		return (await this.guest.exec(this.control_script_path, "synchronized-start")).stdout;
-	}
-
-	/**
-	 * try to detect an running server and find the port number
-	 *
-	 * @returns the `stdout` of the shell script, can be one of:
-	 * - a tcp port number, on success
-	 * - "NOT RUNNING"
-	 */
-	public async find_running_server_port(): Promise<string> {
-		return (await this.guest.exec(this.control_script_path, "synchronized-connect")).stdout;
-	}
-
-	/**
-	 * check if the server is already installed
-	 */
-	public async is_server_installed(): Promise<boolean> {
-		return await this.guest.is_file(this.server_command_path);
-	}
-
-	/**
-	 * shutdown the server, will be called in `extension.deactivate()`
-	 */
-	public shutdown_server() {
-		this.guest.exec(this.control_script_path, "synchronized-disconnect",).child.unref();
-	}
-
-	/**
-	 * the full process to resolve the port number for the remote server
-	 *
-	 * this is called by `vscode.RemoteAuthorityResolver.resolve()`
-	 */
-	public async resolve_server_port(): Promise<number | undefined> {
-		const logger = this.g.logger;
-		logger.appendLine(`resolving distrobox guest: ${this.guest.name}`);
-
-		let port;
-		const running_port = await this.find_running_server_port();
-		logger.appendLine(`running port: ${running_port}`);
-		port = parseInt(running_port, 10);
-		if (!isNaN(port)) {
-			logger.appendLine(`running server listening at ${running_port}`);
-			return port;
-		}
-
-		if (!await this.is_server_installed()) {
-			const buffer: Uint8Array[] = await this.download_server_tarball();
-			await this.extract_server_tarball(Buffer.concat(buffer));
-		}
-
-		const new_port = await this.try_start_new_server();
-		logger.appendLine(`new port: ${new_port}`);
-		port = parseInt(new_port, 10);
-		if (!isNaN(port)) {
-			logger.appendLine(`new server started at ${new_port}`);
-			return port;
-		}
-	}
-
-	/**
 	 * clear_session_files
 	 *
 	 * if the server was not properly shutdown, you might have problems to start
@@ -230,10 +115,6 @@ export class DistroboxResolver {
 	 */
 	public async clear_session_files() {
 		this.guest.exec(this.control_script_path, "stop",).child.unref();
-	}
-
-	public dispose() {
-		this.shutdown_server();
 	}
 }
 
@@ -485,20 +366,70 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 	}
 
 	async resolve(authority: string, _context: vscode.RemoteAuthorityResolverContext) {
-		const g = this.g;
-		g.logger.appendLine(`resolving ${authority}`);
+		const logger = this.g.logger;
+		logger.appendLine(`resolving ${authority}`);
 
-		const [_remote, guest_name_encoded] = authority.split('+', 2);
+		const [remote, guest_name_encoded] = authority.split('+', 2);
+		console.assert(remote == "distrobox");
 		const guest_name = decodeURIComponent(guest_name_encoded);
 		const manager = await DistroManager.which();
 		const guest = await manager.get(guest_name);
+		const [os, arch] = await detect_platform(guest);
+		logger.appendLine(`guest container: ${os}-${arch}`);
 
-		const resolver = await DistroboxResolver.create(g, guest);
+		// prepare the script
+		const xdg_runtime_dir = (await guest.exec("bash", "-c", 'echo "$XDG_RUNTIME_DIR"')).stdout.trim();
+		const server_session_dir = `${xdg_runtime_dir}/vscodium-reh-${system_identifier(os, arch)}-${guest.name}`;
+		const control_script_path = `${server_session_dir}/control-${this.g.context.extension.packageJSON.version}.sh`;
 
-		const port = await resolver.resolve_server_port();
-		if (port) {
-			g.context.subscriptions.push(resolver);
-			g.context.subscriptions.push(
+		// first try it optimistically, to reduce startup latency
+		let port = NaN;
+		try {
+			const output = await guest.exec(control_script_path, "synchronized-start");
+			logger.appendLine(`first attempt output: ${output.stdout}`);
+			port = parseInt(output.stdout);
+		} catch (e) {
+			logger.appendLine(`first attemp failed: ${e}`);
+		}
+
+		const server_command_path = `$HOME/${server_binary_path(os, arch)}`;
+		const server_tarball_url = server_download_url(os, arch);
+
+		// do it properly
+		if (isNaN(port)) {
+			logger.appendLine("preparing server control script");
+
+			await guest.exec("mkdir", "-p", server_session_dir);
+			await guest.write_to_file(
+				control_script_path,
+				get_control_script(server_command_path)
+			);
+			await guest.exec("chmod", "+x", control_script_path);
+
+			logger.appendLine(`control script written to ${control_script_path}`);
+
+			if (!guest.is_file(server_command_path)) {
+				logger.appendLine("server not installed, start downloading");
+				const buffer = await download_server_tarball(server_tarball_url);
+				logger.appendLine("server downloaded, extracting");
+				await guest.exec_with_input(buffer, control_script_path, "install");
+				logger.appendLine("server installed");
+			}
+
+			const output = await guest.exec(control_script_path, "synchronized-start");
+			port = parseInt(output.stdout);
+
+			logger.appendLine(`second attempt output: ${output.stdout}`);
+		}
+
+		if (!isNaN(port)) {
+			this.g.context.subscriptions.push(
+				{
+					dispose() {
+						logger.appendLine(`disconnecting from remote server`);
+						guest.exec(control_script_path, "synchronized-disconnect").child.unref();
+					},
+				},
 				vscode.workspace.registerResourceLabelFormatter({
 					scheme: 'vscode-remote',
 					authority: 'distrobox+*',
@@ -510,20 +441,20 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 						workspaceSuffix: `distrobox: ${guest_name}`,
 						workspaceTooltip: `Connected to ${guest_name}`
 					}
-				})
-			);
-			const details_view = new DetailsView(
-				guest,
-				resolver.guest_os,
-				resolver.guest_arch,
-				resolver.control_script_path,
-				resolver.server_command_path,
-				resolver.server_download_url,
-				resolver.server_session_dir,
-				port,
-			);
-			g.context.subscriptions.push(
-				vscode.window.registerTreeDataProvider("distrobox.server-info", details_view)
+				}),
+				vscode.window.registerTreeDataProvider(
+					"distrobox.server-info",
+					new DetailsView(
+						guest,
+						os,
+						arch,
+						control_script_path,
+						server_command_path,
+						server_tarball_url,
+						server_session_dir,
+						port
+					),
+				)
 			);
 			return new vscode.ResolvedAuthority("localhost", port);
 		}
