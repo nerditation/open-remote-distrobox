@@ -283,7 +283,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 		const [remote, guest_name_encoded] = authority.split('+', 2);
 		console.assert(remote == "distrobox");
 		const guest_name = decodeURIComponent(guest_name_encoded);
-		const manager = await DistroManager.which();
+		const manager = this.g.container_manager;
 		const guest = await manager.get(guest_name);
 		const [os, arch] = await detect_platform(guest);
 		logger.appendLine(`guest container: ${os}-${arch}`);

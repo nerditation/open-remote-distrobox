@@ -12,7 +12,7 @@ import * as os from 'os';
 import { register_distrobox_remote_authority_resolver, } from './resolver';
 import { DistroManager, GuestDistro } from './agent';
 import { register_remote_explorer_view, TargetsView } from './view';
-import { create_command, delete_command } from './extras';
+import { register_extra_commands } from './extras';
 
 
 /**
@@ -27,10 +27,12 @@ export interface ExtensionGlobals {
 
 export async function activate(context: vscode.ExtensionContext) {
 
+	const logger = vscode.window.createOutputChannel("Distrobox", { log: true });
+
 	const g: ExtensionGlobals = {
 		context,
-		container_manager: await DistroManager.which(),
-		logger: vscode.window.createOutputChannel("Distrobox", { log: true })
+		logger,
+		container_manager: await DistroManager.which(logger),
 	};
 
 	register_remote_explorer_view(g);
@@ -38,32 +40,26 @@ export async function activate(context: vscode.ExtensionContext) {
 	register_distrobox_remote_authority_resolver(g);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command("current"))
+		vscode.commands.registerCommand("open-remote-distrobox.connect", connect_command(g, "current"))
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", connect_command("new"))
+		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", connect_command(g, "new"))
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", reopen_command)
+		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", reopen_command(g))
 	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.settings", () => vscode.commands.executeCommand("workbench.action.openSettings", "@ext:nerditation.open-remote-distrobox"))
 	);
 
-	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.create", create_command)
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.delete", delete_command)
-	);
+	register_extra_commands(g);
 }
 
 
-function connect_command(window: 'current' | 'new') {
+function connect_command(g: ExtensionGlobals, window: 'current' | 'new') {
 	return async (guest?: string | GuestDistro) => {
 		let name;
 		if (guest instanceof GuestDistro) {
@@ -72,7 +68,7 @@ function connect_command(window: 'current' | 'new') {
 			name = guest;
 		} else {
 			const selected = await vscode.window.showQuickPick(
-				await list_guest_distros(),
+				await list_guest_distros(g),
 				{
 					canPickMany: false
 				}
@@ -96,82 +92,84 @@ function connect_command(window: 'current' | 'new') {
 	};
 }
 
-async function reopen_command(guest: string | GuestDistro) {
-	let name;
-	if (guest instanceof GuestDistro) {
-		name = guest.name;
-	} else if (guest) {
-		name = guest;
-	} else {
-		const selected = await vscode.window.showQuickPick(
-			await list_guest_distros(),
-			{
-				canPickMany: false
-			}
-		);
-		if (!selected) {
-			return;
-		}
-		name = selected;
-	}
-	let dest;
-	// common case: single root workspace
-	if (vscode.workspace.workspaceFolders?.length == 1) {
-		dest = vscode.workspace.workspaceFolders[0].uri;
-	} else if (vscode.workspace.workspaceFile) {
-		if (vscode.workspace.workspaceFile.scheme == 'untitled') {
-			await vscode.window.showErrorMessage(`untitled multiroot workspace is not supported`);
-			return;
-		}
-		dest = vscode.workspace.workspaceFile;
-	} else {
-		dest = vscode.window.activeTextEditor?.document.uri;
-		if (!dest) {
-			await vscode.window.showErrorMessage("nothing to re-open");
-			return;
-		}
-		const path = dest.fsPath;
-		if (!path.endsWith(".code-workspace")) {
-			if (dest.scheme == "vscode-remote" && dest.authority.startsWith(name)) {
+function reopen_command(g: ExtensionGlobals) {
+	return async (guest: string | GuestDistro) => {
+		let name;
+		if (guest instanceof GuestDistro) {
+			name = guest.name;
+		} else if (guest) {
+			name = guest;
+		} else {
+			const selected = await vscode.window.showQuickPick(
+				await list_guest_distros(g),
+				{
+					canPickMany: false
+				}
+			);
+			if (!selected) {
 				return;
 			}
-			const choice = await vscode.window.showInformationMessage(
-				"you have not opened a folder or workspace, do you want to re-open a single file in the guest distro? NOTE: re-using current window is not supported for single file",
-				"yes",
-				"no"
-			);
-			if (choice != "yes") {
+			name = selected;
+		}
+		let dest;
+		// common case: single root workspace
+		if (vscode.workspace.workspaceFolders?.length == 1) {
+			dest = vscode.workspace.workspaceFolders[0].uri;
+		} else if (vscode.workspace.workspaceFile) {
+			if (vscode.workspace.workspaceFile.scheme == 'untitled') {
+				await vscode.window.showErrorMessage(`untitled multiroot workspace is not supported`);
 				return;
 			}
-			const fileUri = vscode.Uri.from({
-				scheme: "vscode-remote",
-				authority: `distrobox+${encodeURIComponent(name)}`,
-				path,
-			});
-			// NOT WORKING:
-			// this command is internal to vscode and undocumented
-			// I found it in the source code:
-			// https://github.com/microsoft/vscode/blob/dfeb7b06f6095655ab0212ca1662e88ac6d0d045/src/vs/workbench/contrib/files/browser/fileActions.contribution.ts#L46
-			// unfortunately, the `forceReuseWindow` option does NOT work.
-			await vscode.commands.executeCommand(
-				"_files.windowOpen",
-				[{
-					fileUri,
-				}],
-				{ forceReuseWindow: true }
-			);
-			return;
+			dest = vscode.workspace.workspaceFile;
+		} else {
+			dest = vscode.window.activeTextEditor?.document.uri;
+			if (!dest) {
+				await vscode.window.showErrorMessage("nothing to re-open");
+				return;
+			}
+			const path = dest.fsPath;
+			if (!path.endsWith(".code-workspace")) {
+				if (dest.scheme == "vscode-remote" && dest.authority.startsWith(name)) {
+					return;
+				}
+				const choice = await vscode.window.showInformationMessage(
+					"you have not opened a folder or workspace, do you want to re-open a single file in the guest distro? NOTE: re-using current window is not supported for single file",
+					"yes",
+					"no"
+				);
+				if (choice != "yes") {
+					return;
+				}
+				const fileUri = vscode.Uri.from({
+					scheme: "vscode-remote",
+					authority: `distrobox+${encodeURIComponent(name)}`,
+					path,
+				});
+				// NOT WORKING:
+				// this command is internal to vscode and undocumented
+				// I found it in the source code:
+				// https://github.com/microsoft/vscode/blob/dfeb7b06f6095655ab0212ca1662e88ac6d0d045/src/vs/workbench/contrib/files/browser/fileActions.contribution.ts#L46
+				// unfortunately, the `forceReuseWindow` option does NOT work.
+				await vscode.commands.executeCommand(
+					"_files.windowOpen",
+					[{
+						fileUri,
+					}],
+					{ forceReuseWindow: true }
+				);
+				return;
+			}
 		}
-	}
-	if (dest.scheme == 'file'
-		|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
-		const path = dest.fsPath;
-		const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${path}`);
-		console.log(`opening ${uri}`);
-		vscode.commands.executeCommand("vscode.openFolder", uri);
-	} else {
-		await vscode.window.showErrorMessage(`don't know how to map to path: ${dest}`);
-	}
+		if (dest.scheme == 'file'
+			|| dest.scheme == 'vscode-remote' && dest.authority.startsWith('distrobox+')) {
+			const path = dest.fsPath;
+			const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${path}`);
+			console.log(`opening ${uri}`);
+			vscode.commands.executeCommand("vscode.openFolder", uri);
+		} else {
+			await vscode.window.showErrorMessage(`don't know how to map to path: ${dest}`);
+		}
+	};
 }
 
 function map_path(path: string): string {
@@ -185,8 +183,8 @@ function map_path(path: string): string {
 
 }
 
-async function list_guest_distros(): Promise<string[]> {
-	const manager = await DistroManager.which();
+async function list_guest_distros(g: ExtensionGlobals): Promise<string[]> {
+	const manager = g.container_manager;
 	const list = await manager.refresh_guest_list();
 	let current_distro = '';
 	if (process.env.CONTAINER_ID) {

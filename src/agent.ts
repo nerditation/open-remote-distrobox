@@ -53,20 +53,20 @@ export class DistroManager {
 	 * - if inside a flatpak sandbox, try `flatpak-spawn --host distrbox`
 	 * - if inside a distrobox guest, use `distrobox-host-exec distrobox`
 	 */
-	public static async which(): Promise<DistroManager> {
+	public static async which(logger: vscode.LogOutputChannel): Promise<DistroManager> {
 		const with_argv = (...argv: string[]) => {
 			return new DistroManager(new MainCommandBuilder(...argv));
 		};
 		try {
 			const distrobox_path = await which('distrobox');
-			console.log(`found distrobox: ${distrobox_path}`);
+			logger.appendLine(`found distrobox: ${distrobox_path}`);
 			return with_argv(distrobox_path);
 		} catch {
-			console.log("local distrobox not found");
+			logger.appendLine("local distrobox not found");
 		}
 		try {
 			const host_spawn_path = await which('host-spawn');
-			console.log(`inside container with host-spawn: ${host_spawn_path}`);
+			logger.appendLine(`inside container with host-spawn: ${host_spawn_path}`);
 			const banner = await new Promise<string>((resolve, reject) => {
 				cp.execFile(
 					host_spawn_path,
@@ -79,14 +79,14 @@ export class DistroManager {
 						}
 					});
 			});
-			console.log(`found distrobox on container host: ${banner}`);
+			logger.appendLine(`found distrobox on container host: ${banner}`);
 			return with_argv(host_spawn_path, "--no-pty", "distrobox");
 		} catch {
-			console.log("didn't find distrobox with host-spawn");
+			logger.appendLine("didn't find distrobox with host-spawn");
 		}
 		try {
 			const flatpak_spawn_path = await which('flatpak-spawn');
-			console.log(`inside flatpak sandbox: ${flatpak_spawn_path}`);
+			logger.appendLine(`inside flatpak sandbox: ${flatpak_spawn_path}`);
 			const banner = await new Promise<string>((resolve, reject) => {
 				cp.execFile(
 					flatpak_spawn_path,
@@ -99,17 +99,17 @@ export class DistroManager {
 						}
 					});
 			});
-			console.log(`found distrobox on flatpak host: ${banner}`);
+			logger.appendLine(`found distrobox on flatpak host: ${banner}`);
 			return with_argv(flatpak_spawn_path, '--host', 'distrobox');
 		} catch {
-			console.log("didn't find distrobox on flatpak host");
+			logger.appendLine("didn't find distrobox on flatpak host");
 		}
 		try {
 			const distrobox_host_exec_path = await which('distrobox-host-exec');
-			console.log(`inside distrobox guest: ${distrobox_host_exec_path}`);
+			logger.appendLine(`inside distrobox guest: ${distrobox_host_exec_path}`);
 			return with_argv(distrobox_host_exec_path, 'distrobox');
 		} catch {
-			console.log("not inside distrobox guest");
+			logger.appendLine("not inside distrobox guest");
 		}
 		throw ("didn't find distrobox command");
 	}
