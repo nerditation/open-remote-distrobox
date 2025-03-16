@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 import * as os from 'os';
 
-import { DistroboxResolver, register_distrobox_remote_authority_resolver, } from './resolver';
+import { register_distrobox_remote_authority_resolver, } from './resolver';
 import { DistroManager, GuestDistro } from './agent';
 import { register_remote_explorer_view, TargetsView } from './view';
 import { create_command, delete_command } from './extras';
@@ -59,29 +59,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.delete", delete_command)
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.clear-crashed-session",
-			async (name?: string) => {
-				const manager = g.container_manager;
-				if (!name) {
-					const selected = await vscode.window.showQuickPick(
-						list_guest_distros(),
-						{
-							canPickMany: false
-						}
-					);
-					if (!selected) {
-						return;
-					}
-					name = selected;
-				}
-				const guest = await manager.get(name);
-				const resolver = await DistroboxResolver.create(g, guest);
-				await resolver.clear_session_files();
-			}
-		)
 	);
 }
 
