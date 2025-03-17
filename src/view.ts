@@ -12,7 +12,7 @@
  */
 
 import * as vscode from 'vscode';
-import { DistroManager, GuestDistro } from './agent';
+import { ContainerManager, GuestContainer } from './agent';
 import { ExtensionGlobals } from './extension';
 
 
@@ -23,13 +23,13 @@ import { ExtensionGlobals } from './extension';
  *
  * it just calls `distrobox list` to populate the list of guest distros
  */
-export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode.Disposable {
+export class TargetsView implements vscode.TreeDataProvider<GuestContainer>, vscode.Disposable {
 
 	refresh_request: vscode.EventEmitter<void> = new vscode.EventEmitter();
 	onDidChangeTreeData: vscode.Event<void> = this.refresh_request.event;
 
 	constructor(
-		public manager: DistroManager,
+		public manager: ContainerManager,
 	) {
 	}
 
@@ -43,7 +43,7 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 	 *
 	 * in the future, maybe save recently opened workspaces
 	 */
-	public async getChildren(element?: GuestDistro): Promise<GuestDistro[]> {
+	public async getChildren(element?: GuestContainer): Promise<GuestContainer[]> {
 		if (element) {
 			return [];
 		} else {
@@ -51,7 +51,7 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 		}
 	}
 
-	public getTreeItem(element: GuestDistro): vscode.TreeItem {
+	public getTreeItem(element: GuestContainer): vscode.TreeItem {
 		const item = new vscode.TreeItem(element.name);
 		item.contextValue = "distrobox.guest";
 		// full list of icons: https://code.visualstudio.com/api/references/icons-in-labels
@@ -86,7 +86,7 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 export class DetailsView implements vscode.TreeDataProvider<string> {
 
 	constructor(
-		public guest: GuestDistro,
+		public guest: GuestContainer,
 		public guest_os: string,
 		public guest_arch: string,
 		public control_script_path: string,

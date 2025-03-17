@@ -9,7 +9,7 @@ import { arch as node_arch } from "os";
 
 import * as vscode from "vscode";
 
-import { GuestDistro } from "./agent";
+import { GuestContainer } from "./agent";
 import { ExtensionGlobals } from "./extension";
 
 
@@ -67,7 +67,7 @@ Usage: /lib/ld-musl-x86_64.so.1 [options] [--] pathname
  * so potentially this can also be used for containers not managed by distrobox
  *
  */
-export async function detect_platform(guest: GuestDistro): Promise<[string, string]> {
+export async function detect_platform(guest: GuestContainer): Promise<[string, string]> {
 	let ldd_info;
 	// musl'd ldd always have exit code "1" when invoked directly
 	// promisified execFile will throw exception for non-zero exit code

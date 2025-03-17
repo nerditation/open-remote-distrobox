@@ -21,7 +21,7 @@
 
 import * as vscode from "vscode";
 
-import { DistroManager } from "./agent";
+import { ContainerManager } from "./agent";
 import { CreateCommandBuilder, CreateOptions, RmCommandBuilder, RmOptions } from "./distrobox";
 import { ExtensionGlobals } from "./extension";
 

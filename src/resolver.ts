@@ -26,7 +26,7 @@ import * as config from './config';
 import * as setup from './setup';
 import { ExtensionGlobals } from "./extension";
 import { DetailsView } from './view';
-import { GuestDistro } from './agent';
+import { GuestContainer } from './agent';
 
 
 /**
@@ -167,8 +167,8 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 
 export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals) {
 
-	async function normalize_command_argument(guest?: string | GuestDistro): Promise<string | undefined> {
-		if (guest instanceof GuestDistro) {
+	async function normalize_command_argument(guest?: string | GuestContainer): Promise<string | undefined> {
+		if (guest instanceof GuestContainer) {
 			return guest.name;
 		} else if (guest) {
 			return guest;
@@ -189,7 +189,7 @@ export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals
 
 	g.context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", new RemoteAuthorityResolver(g)),
-		vscode.commands.registerCommand("open-remote-distrobox.connect", async (guest?: string | GuestDistro) => {
+		vscode.commands.registerCommand("open-remote-distrobox.connect", async (guest?: string | GuestContainer) => {
 			const guest_name = await normalize_command_argument(guest);
 			if (guest_name) {
 				if (vscode.env.remoteAuthority == `distrobox+${encodeURIComponent(guest_name)}`) {
@@ -199,13 +199,13 @@ export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals
 				connect_to_container(guest_name, "current");
 			}
 		}),
-		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", async (guest?: string | GuestDistro) => {
+		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", async (guest?: string | GuestContainer) => {
 			const guest_name = await normalize_command_argument(guest);
 			if (guest_name) {
 				connect_to_container(guest_name, "new");
 			}
 		}),
-		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", async (guest?: string | GuestDistro) => {
+		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", async (guest?: string | GuestContainer) => {
 			const guest_name = await normalize_command_argument(guest);
 			if (guest_name) {
 				await reopen_in_container(guest_name);

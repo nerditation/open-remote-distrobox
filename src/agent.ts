@@ -36,7 +36,7 @@ const execFile = promisify(cp.execFile);
  *
  * I call it distro manager, similar to "container manager" like `podman`
  */
-export class DistroManager {
+export class ContainerManager {
 
 	private constructor(
 		private cmd: MainCommandBuilder,
@@ -51,9 +51,9 @@ export class DistroManager {
 	 * - if inside a flatpak sandbox, try `flatpak-spawn --host distrbox`
 	 * - if inside a distrobox guest, use `distrobox-host-exec distrobox`
 	 */
-	public static async which(logger: vscode.LogOutputChannel): Promise<DistroManager> {
+	public static async which(logger: vscode.LogOutputChannel): Promise<ContainerManager> {
 		const with_argv = (...argv: string[]) => {
-			return new DistroManager(new MainCommandBuilder(...argv));
+			return new ContainerManager(new MainCommandBuilder(...argv));
 		};
 		try {
 			const distrobox_path = await which('distrobox');
@@ -115,7 +115,7 @@ export class DistroManager {
 	/**
 	 * encapsulate the `distrbox list` command
 	 */
-	public async refresh_guest_list(): Promise<GuestDistro[]> {
+	public async refresh_guest_list(): Promise<GuestContainer[]> {
 		const { stdout } = await this.cmd.list().exec();
 		const lines = stdout.split("\n").filter(line => line != "");
 		const header = lines.shift()!;
@@ -125,7 +125,7 @@ export class DistroManager {
 		column_names.every((column, i) => console.assert(column == expected_columns[i]));
 		return lines.map((line) => {
 			const [id, name, status, image] = line.split("|").map(s => s.trim());
-			return new GuestDistro(this.cmd.enter(name).no_tty().no_workdir(), id, name, status, image);
+			return new GuestContainer(this.cmd.enter(name).no_tty().no_workdir(), id, name, status, image);
 		});
 	}
 
@@ -156,7 +156,7 @@ export class DistroManager {
 	/**
 	 * get a `GuestDistro` by its `name`
 	 */
-	public async get(name: string): Promise<GuestDistro> {
+	public async get(name: string): Promise<GuestContainer> {
 		const guest = (await this.refresh_guest_list()).find(guest => guest.name == name);
 		if (!guest) {
 			throw `distro "${name}" does not exist`;
@@ -168,7 +168,7 @@ export class DistroManager {
 /**
  * information about a specific guest container
  */
-export class GuestDistro {
+export class GuestContainer {
 	// fields corresponding to the columns of the output of `distrobox list`
 	// TODO:
 	//   the `status` field doesn't update, which is not useful,

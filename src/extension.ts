@@ -9,7 +9,7 @@
 import * as vscode from 'vscode';
 
 import { register_distrobox_remote_authority_resolver, } from './resolver';
-import { DistroManager } from './agent';
+import { ContainerManager } from './agent';
 import { register_remote_explorer_view } from './view';
 import { register_extra_commands } from './extras';
 
@@ -20,7 +20,7 @@ import { register_extra_commands } from './extras';
  */
 export interface ExtensionGlobals {
 	context: vscode.ExtensionContext,
-	container_manager: DistroManager,
+	container_manager: ContainerManager,
 	logger: vscode.LogOutputChannel,
 }
 
@@ -31,7 +31,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const g: ExtensionGlobals = {
 		context,
 		logger,
-		container_manager: await DistroManager.which(logger),
+		container_manager: await ContainerManager.which(logger),
 	};
 
 	register_distrobox_remote_authority_resolver(g);
