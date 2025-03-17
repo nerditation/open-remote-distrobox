@@ -169,3 +169,203 @@ export async function download_server_tarball(url: string,): Promise<Buffer> {
 		return Buffer.concat(buffer);
 	});
 }
+
+export function get_control_script(server_command_path: string) {
+	const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
+	const exports = [];
+	for (const name in env) {
+		const value = env[name];
+		if (typeof value == 'string') {
+			exports.push(`${name}="${value}"`);
+		} else if (value == true) {
+			const local_value = process.env[name];
+			if (local_value) {
+				exports.push(`${name}="${local_value}"`);
+			}
+		}
+	}
+	return `#!/bin/bash
+
+# configuration
+SERVER_COMMAND=${server_command_path}
+SESSION_DIR="$(dirname "$(realpath "$0")")"
+
+
+# session files
+PORT_FILE=$SESSION_DIR/port
+LOG_FILE=$SESSION_DIR/log
+COUNT_FILE=$SESSION_DIR/count
+PID1_FILE=$SESSION_DIR/pid1
+PID2_FILE=$SESSION_DIR/pid2
+
+
+# for debug purpose only
+status() {
+	if [[ -f "$PID1_FILE" ]] && kill -0 $(cat "$PID1_FILE") 2>/dev/null; then
+		echo "server is running"
+		echo "client count: $(cat "$COUNT_FILE")"
+		echo "pid1: $(cat "$PID1_FILE"), pid2: $(cat "$PID2_FILE")"
+		echo "socket: $(ss -tlnp | grep ":$(cat "$PORT_FILE")")"
+		echo "-----------------------------------------------------------"
+		cat "$LOG_FILE"
+	else
+		echo "server is NOT running"
+	fi
+}
+
+
+# if a server is running, print the port to stdout and increase use count
+connect_server() {
+	# make sure server process is still running
+	if [[ -f "$PID2_FILE" ]] && kill -0 $(cat "$PID2_FILE") 2>/dev/null; then
+		# check the port is open and is bound by the server process
+		if [[ -z "$(ss -tlnp | grep ":$(cat $PORT_FILE)" | grep "pid=$(cat "$PID2_FILE")")" ]]; then
+			stop_server
+			echo STALE
+		else
+			count="$(cat "$COUNT_FILE")"
+			count="$(($"count" + 1))"
+			echo "$count" >"$COUNT_FILE"
+			cat "$PORT_FILE"
+		fi
+	else
+		echo NOT RUNNING;
+	fi
+}
+
+
+# decrease use count, kill the server process if reached zero
+# but sleep several seconds first, just in case vscodium reloads the extension
+disconnect_server() {
+	# grace period to prevent thrashing server process
+	sleep "$1"
+
+	if [[ -f "$COUNT_FILE" ]]; then
+		# decrease the use count
+		count="$(cat "$COUNT_FILE")"
+		count="$(("$count" - 1))"
+		echo "$count" >"$COUNT_FILE"
+		if [[ "$count" -eq 0 ]]; then
+			stop_server
+		fi
+	else
+		echo "NOT CONNECTED"
+	fi
+}
+
+
+# launch the process daemonized,
+start_server() {
+	${exports.map(variable => "export " + variable).join("\n\t")}
+	nohup \\
+		"$SERVER_COMMAND" \\
+		--accept-server-license-terms \\
+		--telemetry-level off \\
+		--host localhost \\
+		--port 0 \\
+		--without-connection-token \\
+		2>&1 \\
+		>"$LOG_FILE" \\
+		&
+
+	# save the wrapper pid1, the node pid2 needs to be found later
+	PID1=$!
+
+	# try to extract the port number from the server output
+	for ((i = 0; i < $1; i++)); do
+		PORT="$(sed -n 's/.*Extension host agent listening on \\([0-9]\\+\\).*/\\1/p' "$LOG_FILE")"
+		if [[ -n "$PORT" ]]; then
+			break
+		fi
+		sleep 0.1
+	done
+
+	# if succeeded, initialize the use count to 1
+	# save the port number, and print it to stdout
+	if [[ -n "$PORT" ]]; then
+		# ps output contains a leading space, use 'xargs' to trim
+		PID2=$(ps --ppid $PID1 --format pid= | xargs)
+		echo "1" >"$COUNT_FILE"
+		echo "$PID1" >"$PID1_FILE"
+		echo "$PID2" >"$PID2_FILE"
+		echo "$PORT" >"$PORT_FILE"
+		echo "$PORT"
+	else
+		stop_server
+		echo ERROR
+	fi
+}
+
+
+# kill the server process
+stop_server() {
+	if [[ -f "$PID2_FILE" ]]; then
+		kill "$(cat "$PID2_FILE")" 2>/dev/null
+	fi
+	if [[ -f "$PID1_FILE" ]]; then
+		kill "$(cat "$PID1_FILE")" 2>/dev/null
+	fi
+	rm -f "$PORT_FILE" "$COUNT_FILE" "$PID1_FILE" "$PID2_FILE"
+}
+
+
+# extract the server tarball
+install_server() {
+	# SERVER_COMMAND is in the format $HOME/.vscodium-server/bin/codium-reh-OS-VERSION/bin/codium-server
+	SERVER_INSTALL_DIR="$(dirname "$(dirname "$SERVER_COMMAND")")"
+	mkdir -p "$SERVER_INSTALL_DIR"
+	exec tar -xz -C "$SERVER_INSTALL_DIR"
+}
+
+
+# first try to connect, if failed, then try to start new
+# intended to be called holding a lock
+connect_or_start_server() {
+	PORT=$(connect_server)
+	if [[ "$PORT" =~ ^[0-9]+$ ]]; then
+		echo $PORT
+	else
+		start_server 10
+	fi
+}
+
+
+# Command-line argument handling
+case "$1" in
+	connect)
+		connect_server
+		;;
+	disconnect)
+		disconnect_server "\${2:-0}"
+		;;
+	start)
+		start_server "\${2:-10}"
+		;;
+	stop)
+		stop_server
+		;;
+	connect-or-start)
+		connect_or_start_server
+		;;
+	install)
+		install_server
+		;;
+	-h|--help)
+		echo "Usage: $0 {connect|disconnect|start|stop}"
+		;;
+	synchronized-connect)
+		flock -o "$SESSION_DIR" "$0" connect
+		;;
+	synchronized-disconnect)
+		sleep \${2:-5}
+		flock -o "$SESSION_DIR" "$0" disconnect 0
+		;;
+	synchronized-start)
+		flock -o "$SESSION_DIR" "$0" connect-or-start
+		;;
+	*)
+		status
+		;;
+esac
+`;
+}
