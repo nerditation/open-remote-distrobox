@@ -38,8 +38,6 @@ const execFile = promisify(cp.execFile);
  */
 export class DistroManager {
 
-	public cached_guest_list: GuestDistro[] = [];
-
 	private constructor(
 		private cmd: MainCommandBuilder,
 	) {
@@ -125,11 +123,10 @@ export class DistroManager {
 		const column_names = header.split("|").map(s => s.trim());
 		const expected_columns = ["ID", "NAME", "STATUS", "IMAGE"];
 		column_names.every((column, i) => console.assert(column == expected_columns[i]));
-		this.cached_guest_list = lines.map((line) => {
+		return lines.map((line) => {
 			const [id, name, status, image] = line.split("|").map(s => s.trim());
 			return new GuestDistro(this.cmd.enter(name).no_tty().no_workdir(), id, name, status, image);
 		});
-		return this.cached_guest_list;
 	}
 
 	/**
@@ -160,11 +157,7 @@ export class DistroManager {
 	 * get a `GuestDistro` by its `name`
 	 */
 	public async get(name: string): Promise<GuestDistro> {
-		let guest = this.cached_guest_list.find(guest => guest.name == name);
-		if (!guest) {
-			await this.refresh_guest_list();
-			guest = this.cached_guest_list.find(guest => guest.name == name);
-		}
+		const guest = (await this.refresh_guest_list()).find(guest => guest.name == name);
 		if (!guest) {
 			throw `distro "${name}" does not exist`;
 		}

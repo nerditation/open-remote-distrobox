@@ -20,11 +20,13 @@
  */
 
 
+import { homedir } from 'os';
 import * as vscode from 'vscode';
-import { server_binary_path, server_download_url, system_identifier } from './remote';
+import * as config from './config';
+import * as setup from './setup';
 import { ExtensionGlobals } from "./extension";
 import { DetailsView } from './view';
-import { detect_platform, download_server_tarball, get_control_script } from './setup';
+import { GuestDistro } from './agent';
 
 
 /**
@@ -47,12 +49,12 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 		const guest_name = decodeURIComponent(guest_name_encoded);
 		const manager = this.g.container_manager;
 		const guest = await manager.get(guest_name);
-		const [os, arch] = await detect_platform(guest);
+		const [os, arch] = await setup.detect_platform(guest);
 		logger.appendLine(`guest container: ${os}-${arch}`);
 
 		// prepare the script
 		const xdg_runtime_dir = (await guest.exec("bash", "-c", 'echo "$XDG_RUNTIME_DIR"')).stdout.trim();
-		const server_session_dir = `${xdg_runtime_dir}/vscodium-reh-${system_identifier(os, arch)}-${guest.name}`;
+		const server_session_dir = `${xdg_runtime_dir}/distrobox-vscodium-server-${config.session_identifier(os, arch, guest_name)}`;
 		const control_script_path = `${server_session_dir}/control-${this.g.context.extension.packageJSON.version}.sh`;
 
 		// first try it optimistically, to reduce startup latency
@@ -65,8 +67,8 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 			logger.appendLine(`first attemp failed: ${e}`);
 		}
 
-		const server_command_path = `$HOME/${server_binary_path(os, arch)}`;
-		const server_tarball_url = server_download_url(os, arch);
+		const server_command_path = `$HOME/${config.server_command_path(os, arch)}`;
+		const server_tarball_url = config.server_download_url(os, arch);
 
 		// do it properly
 		if (isNaN(port)) {
@@ -75,15 +77,15 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 			await guest.exec("mkdir", "-p", server_session_dir);
 			await guest.write_to_file(
 				control_script_path,
-				get_control_script(server_command_path)
+				setup.get_control_script(server_command_path)
 			);
 			await guest.exec("chmod", "+x", control_script_path);
 
 			logger.appendLine(`control script written to ${control_script_path}`);
 
-			if (!guest.is_file(server_command_path)) {
+			if (!await guest.is_file(server_command_path)) {
 				logger.appendLine("server not installed, start downloading");
-				const buffer = await download_server_tarball(server_tarball_url);
+				const buffer = await setup.download_server_tarball(server_tarball_url);
 				logger.appendLine("server downloaded, extracting");
 				await guest.exec_with_input(buffer, control_script_path, "install");
 				logger.appendLine("server installed");
@@ -165,8 +167,121 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 
 export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals) {
 
+	async function normalize_command_argument(guest?: string | GuestDistro): Promise<string | undefined> {
+		if (guest instanceof GuestDistro) {
+			return guest.name;
+		} else if (guest) {
+			return guest;
+		} else {
+			const interactive = await vscode.window.showQuickPick(
+				g.container_manager.refresh_guest_list().then(guests => guests.map(guest => guest.name)),
+				{
+					title: "select a guest container",
+					canPickMany: false
+				}
+			);
+			if (!interactive) {
+				return;
+			}
+			return interactive;
+		}
+	}
+
 	g.context.subscriptions.push(
-		vscode.workspace.registerRemoteAuthorityResolver("distrobox", new RemoteAuthorityResolver(g))
+		vscode.workspace.registerRemoteAuthorityResolver("distrobox", new RemoteAuthorityResolver(g)),
+		vscode.commands.registerCommand("open-remote-distrobox.connect", async (guest?: string | GuestDistro) => {
+			const guest_name = await normalize_command_argument(guest);
+			if (guest_name) {
+				if (vscode.env.remoteAuthority == `distrobox+${encodeURIComponent(guest_name)}`) {
+					vscode.window.showInformationMessage("already connected to the same guest container");
+					return;
+				}
+				connect_to_container(guest_name, "current");
+			}
+		}),
+		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", async (guest?: string | GuestDistro) => {
+			const guest_name = await normalize_command_argument(guest);
+			if (guest_name) {
+				connect_to_container(guest_name, "new");
+			}
+		}),
+		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", async (guest?: string | GuestDistro) => {
+			const guest_name = await normalize_command_argument(guest);
+			if (guest_name) {
+				await reopen_in_container(guest_name);
+			}
+		})
 	);
 
+}
+
+// implement the "connect" and "connect-new-window" commands
+function connect_to_container(name: string, window: "current" | "new") {
+	vscode.commands.executeCommand("vscode.newWindow", {
+		reuseWindow: window == 'current',
+		remoteAuthority: "distrobox+" + encodeURIComponent(name)
+	});
+}
+
+// implement the "reopen-workspace-in-guest" command
+async function reopen_in_container(name: string) {
+	const current = get_current_workspace();
+	if (current?.scheme == 'file'
+		|| current?.scheme == 'vscode-remote' && current.authority.startsWith('distrobox+')) {
+		const uri = vscode.Uri.parse(`vscode-remote://distrobox+${encodeURI(name)}${map_to_guest_path(current.fsPath)}`);
+		vscode.commands.executeCommand("vscode.openFolder", uri);
+	} else {
+		await vscode.window.showErrorMessage(`don't know how to map to path: ${current}`);
+	}
+}
+
+function get_current_workspace(): vscode.Uri | undefined {
+	if (vscode.workspace.workspaceFolders?.length == 1) {
+		// single root workspace
+		return vscode.workspace.workspaceFolders[0].uri;
+	} else if (vscode.workspace.workspaceFile) {
+		// multi-root workspace, need saved `.code-workspace` file
+		if (vscode.workspace.workspaceFile.scheme == 'untitled') {
+			vscode.window.showInformationMessage(`please save workspace file first`);
+			return;
+		}
+		return vscode.workspace.workspaceFile;
+	} else {
+		// finally, if no workspace is open but a `.code-workspace` file is open
+		const file = vscode.window.activeTextEditor?.document.uri;
+		if (file?.fsPath.endsWith(".code-workspace")) {
+			return file;
+		}
+		vscode.window.showErrorMessage("no current workspace");
+		return;
+		/*
+		const fileUri = vscode.Uri.from({
+			scheme: "vscode-remote",
+			authority: `distrobox+${encodeURIComponent(name)}`,
+			path: current.fsPath,
+		});
+		// NOT WORKING:
+		// this command is internal to vscode and undocumented
+		// I found it in the source code:
+		// https://github.com/microsoft/vscode/blob/dfeb7b06f6095655ab0212ca1662e88ac6d0d045/src/vs/workbench/contrib/files/browser/fileActions.contribution.ts#L46
+		// unfortunately, the `forceReuseWindow` option does NOT work.
+		await vscode.commands.executeCommand(
+			"_files.windowOpen",
+			[{
+				fileUri,
+			}],
+			{ forceReuseWindow: true }
+		);
+		*/
+	}
+
+}
+
+function map_to_guest_path(path: string): string {
+	// if it's within $HOME or it's already mapped to `/run/host`
+	if (path.startsWith(homedir()) || path.startsWith('/run/host/')) {
+		return path;
+	} else {
+		return `/run/host${path}`;
+	}
 }

@@ -57,6 +57,7 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 		// full list of icons: https://code.visualstudio.com/api/references/icons-in-labels
 		// `terminal-linux` is Tux
 		item.iconPath = new vscode.ThemeIcon("terminal-linux");
+		item.tooltip = element.image;
 		return item;
 	}
 
@@ -76,6 +77,11 @@ export class TargetsView implements vscode.TreeDataProvider<GuestDistro>, vscode
 
 /**
  * the `Details` section of the remote explorer view
+ *
+ * this is just a placeholder so I can understand how to use the API.
+ *
+ * I don't really know what information is useful to the user, for reference,
+ * microsoft's devcontainers extension would show the output of `podman inspect`
  */
 export class DetailsView implements vscode.TreeDataProvider<string> {
 
