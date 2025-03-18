@@ -114,5 +114,5 @@ export function server_download_url(os: string, arch: string): string {
  * return the path to the server executable
  */
 export function server_command_path(os: string, arch: string): string {
-	return `${_VSCODE_PRODUCT_JSON.serverDataFolderName}/vscodium-reh/${server_identifier(os, arch)}/bin/${_VSCODE_PRODUCT_JSON.serverApplicationName}`;
+	return `${_VSCODE_PRODUCT_JSON.serverDataFolderName}/bin/vscodium-reh-${server_identifier(os, arch)}/bin/${_VSCODE_PRODUCT_JSON.serverApplicationName}`;
 }
