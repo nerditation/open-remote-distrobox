@@ -119,6 +119,16 @@
 <foot>
 	<script type="text/javascript">
 		const vscode = acquireVsCodeApi();
+
+		window.addEventListener("DOMContentLoaded", (e) => {
+			vscode.postMessage("loaded");
+		});
+
+		window.addEventListener("message", (e) => {
+			const list = e.data.map(s => `<option>${s}</option>`).join("\n");
+			document.querySelector("datalist#compatible").innerHTML = list
+		});
+
 		document.querySelector("button").onclick = (e) => {
 			const options = {};
 			for (const input of document.querySelectorAll("input")) {

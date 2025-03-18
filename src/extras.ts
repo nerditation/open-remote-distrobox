@@ -104,7 +104,7 @@ export function register_extra_commands(g: ExtensionGlobals) {
 			}
 			create_command_in_progress = true;
 
-			const options: CreateOptions = await open_distrbox_create_view(g.context);
+			const options: CreateOptions = await open_distrbox_create_view(g);
 
 			// these extra commands is distrobox specific, use the builders directly
 			const create_argv = g.container_manager.cmd.create().with_options(options).build();
@@ -141,7 +141,7 @@ export function register_extra_commands(g: ExtensionGlobals) {
 	);
 }
 
-function open_distrbox_create_view(context: vscode.ExtensionContext): Promise<CreateOptions> {
+function open_distrbox_create_view(g: ExtensionGlobals): Promise<CreateOptions> {
 	vscode.commands.executeCommand("setContext", "distrobox.showCreateView", true);
 	return new Promise((resolve, reject) => {
 		const disposable = vscode.window.registerWebviewViewProvider(
@@ -152,9 +152,13 @@ function open_distrbox_create_view(context: vscode.ExtensionContext): Promise<Cr
 						enableScripts: true,
 						enableForms: true,
 					};
-					webviewView.webview.html = await get_html(context);
-					// TODO: send compatible image list to webview
-					webviewView.webview.onDidReceiveMessage(async (options: CreateOptions) => {
+					webviewView.webview.html = await get_html(g.context);
+					webviewView.webview.onDidReceiveMessage(async (message: "loaded" | CreateOptions) => {
+						if (message == "loaded") {
+							webviewView.webview.postMessage(await g.container_manager.compatibility());
+							return;
+						}
+						const options = message;
 						if (!options.name || !options.image) {
 							vscode.window.showErrorMessage("required fields not filled");
 						} else {
