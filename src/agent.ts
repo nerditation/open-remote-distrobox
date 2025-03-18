@@ -130,27 +130,11 @@ export class ContainerManager {
 	}
 
 	/**
-	 * encapsulate the `distrobox rm` command
-	 */
-	public async delete(name: string, opts?: RmOptions): Promise<{ exit_code?: string | number, stdout: string, stderr: string }> {
-		const cmd_builder = this.cmd.rm(name).with_options(opts ?? RmCommandBuilder.default_options());
-		return cmd_builder.exec();
-	}
-
-	/**
 	 * a wrapper for `distrobox create --compatibility` command
 	 */
 	public async compatibility(): Promise<string[]> {
 		const { stdout } = await this.cmd.create().compatibility().exec();
 		return stdout.split('\n').map(s => s.trim()).filter(s => s != "");
-	}
-
-	/**
-	 * encapsulate the `distrobox create` command
-	 */
-	public async create(opts: CreateOptions) {
-		const builder = this.cmd.create().with_options(opts).yes();
-		return builder.exec();
 	}
 
 	/**

@@ -186,8 +186,8 @@ export class MainCommandBuilder extends CommandLineBuilder {
 	/**
 	 * shorhand to construct a builder for the subcommand `distrobox-rm`
 	 */
-	public rm(name: string): RmCommandBuilder {
-		return new RmCommandBuilder(this, name);
+	public rm(...names: string[]): RmCommandBuilder {
+		return new RmCommandBuilder(this, ...names);
 	}
 }
 

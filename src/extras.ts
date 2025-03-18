@@ -24,126 +24,78 @@ import * as vscode from "vscode";
 import { CreateOptions, RmCommandBuilder, RmOptions } from "./distrobox";
 import { ExtensionGlobals } from "./extension";
 import { readFile } from "fs/promises";
+import { GuestContainer } from "./agent";
+import { normalize_command_argument as normalize_guest_name_argument } from "./utils";
 
-function delete_command(g: ExtensionGlobals) {
-	return async (name?: string) => {
-		if (!name) {
-			const manager = g.container_manager;
-			name = await vscode.window.showQuickPick(
-				manager.refresh_guest_list().then(list => list.map(guest => guest.name))
-			);
+async function double_confirm(name: string) {
+	if ("Yes" != await vscode.window.showQuickPick(
+		["No", "Yes",],
+		{
+			title: "WARNING",
+			placeHolder: `are you sure you want to delete the distrobox guest "${name}"?`,
 		}
-		if (!name) {
-			return;
-		}
-		if ("Yes" != await vscode.window.showQuickPick(
-			[
-				"No",
-				"Yes",
-			],
-			{
-				title: "WARNING",
-				placeHolder: `are you sure you want to delete the distrobox guest "${name}"?`,
-			}
-		)) {
-			return;
-		}
-		const confirmation = await vscode.window.showInputBox({
-			title: "manual confirmation",
-			placeHolder: "any typo will cancel",
-			prompt: `please type verbatim: I want to delete "${name}"`,
-		});
-		if (confirmation != `I want to delete "${name}"`) {
-			vscode.window.showInformationMessage("delete operation cancelled");
-			return;
-		}
-
-		const pick = (label: string, detail: string): vscode.QuickPickItem => {
-			return {
-				label,
-				detail,
-				alwaysShow: true,
-			};
-		};
-
-		const flag_picks = await vscode.window.showQuickPick(
-			[
-				pick("force", "force deletion"),
-				pick("rm_home", "remove the mounted hoe if it differs from the host user's one"),
-				pick("verbose", "show more verbosity"),
-			],
-			{
-				canPickMany: true,
-				title: "flags",
-				placeHolder: "select the flags you want to set",
-			}
-		);
-		if (!flag_picks) {
-			return;
-		}
-		const flags: RmOptions = RmCommandBuilder.default_options();
-		for (const flag of flag_picks) {
-			(flags as any)[flag.label] = true;
-		}
-		if ("Yes, Please Delete It" != await vscode.window.showWarningMessage(
-			"FINAL CONFIRMAIION",
-			{
-				modal: true,
-				detail: "this is your LAST CHANCE to cancel!\n\nare you really sure you want to delete it?",
-			},
-			"Yes, Please Delete It"
-		)) {
-			return;
-		}
-
-		const manager = g.container_manager;
-		const { stdout, stderr, exit_code } = await manager.delete(name, flags);
-
-		let show_detail;
-		if (exit_code) {
-			show_detail = await vscode.window.showErrorMessage(
-				"error running command `distrobox rm`",
-				"show detail"
-			);
-		} else {
-			show_detail = await vscode.window.showInformationMessage(
-				"command `distrobox rm` run successfully",
-				"show detail"
-			);
-		}
-		if (show_detail) {
-			const detail = `
-exit code: ${exit_code ?? 0}
-
-stdout:
-
-\`\`\`console
-${stdout}
-\`\`\`
-
-stderr:
-
-\`\`\`console
-${stderr}
-\`\`\`
-`;
-
-			const doc = await vscode.workspace.openTextDocument({
-				language: "markdown",
-				content: detail,
-			});
-			await vscode.window.showTextDocument(doc);
-		}
-	};
+	)) {
+		return false;
+	}
+	const manual_confirmation = `I want to delete "${name}"`;
+	return manual_confirmation == await vscode.window.showInputBox({
+		title: "manual confirmation",
+		placeHolder: "any typo will cancel",
+		prompt: `please type verbatim: ${manual_confirmation}`,
+	});
 }
 
-let create_command_in_progress = false;
+async function input_rm_options() {
+	const option = (label: string, detail: string): vscode.QuickPickItem => {
+		return {
+			label,
+			detail,
+			alwaysShow: true,
+		};
+	};
+	const picks = await vscode.window.showQuickPick(
+		[
+			option("force", "force deletion"),
+			option("rm_home", "remove the mounted hoe if it differs from the host user's one"),
+			option("verbose", "show more verbosity"),
+		],
+		{
+			canPickMany: true,
+			title: "flags",
+		}
+	);
+	if (!picks) {
+		return;
+	}
+	const options: RmOptions = RmCommandBuilder.default_options();
+	for (const flag of picks) {
+		(options as any)[flag.label] = true;
+	}
+	return options;
+}
+
+async function final_confirm(name: string) {
+	return "ABSOLUTELY DELETE IT NOW" == await vscode.window.showWarningMessage(
+		"FINAL CONFIRMAIION",
+		{
+			modal: true,
+			detail: "this is your LAST CHANCE to cancel!\n\nare you really sure you want to delete it?",
+		},
+		"I Changed My Mind, DO NOT DELETE",
+		"ABSOLUTELY DELETE IT NOW",
+	);
+}
+
 
 export function register_extra_commands(g: ExtensionGlobals) {
+
+	// can only run the command once
+	let create_command_in_progress = false;
 
 	g.context.subscriptions.push(
 		vscode.commands.registerCommand("open-remote-distrobox.create", async () => {
 			if (create_command_in_progress) {
+				vscode.window.showInformationMessage("another create command didn't finish");
 				return;
 			}
 			if (!vscode.workspace.workspaceFolders) {
@@ -166,7 +118,25 @@ export function register_extra_commands(g: ExtensionGlobals) {
 			await vscode.commands.executeCommand("open-remote-distrobox.refresh");
 			create_command_in_progress = false;
 		}),
-		vscode.commands.registerCommand("open-remote-distrobox.delete", delete_command(g)),
+		vscode.commands.registerCommand("open-remote-distrobox.delete", async (guest?: string | GuestContainer) => {
+			const name = await normalize_guest_name_argument(g.container_manager, guest);
+			if (!name) {
+				return;
+			}
+			if (!await double_confirm(name)) {
+				return;
+			}
+			const options = await input_rm_options();
+			if (!options) {
+				return;
+			}
+			if (!await final_confirm(name)) {
+				return;
+			}
+			const argv = g.container_manager.cmd.rm().with_options(options).names(name).build();
+			const argv0 = argv.shift()!;
+			await run_as_task("distrobox rm", argv0, argv);
+		}),
 	);
 }
 

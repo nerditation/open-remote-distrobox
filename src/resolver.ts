@@ -27,6 +27,7 @@ import * as setup from './setup';
 import { ExtensionGlobals } from "./extension";
 import { DetailsView } from './view';
 import { GuestContainer } from './agent';
+import { normalize_command_argument } from './utils';
 
 
 /**
@@ -167,30 +168,10 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 
 export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals) {
 
-	async function normalize_command_argument(guest?: string | GuestContainer): Promise<string | undefined> {
-		if (guest instanceof GuestContainer) {
-			return guest.name;
-		} else if (guest) {
-			return guest;
-		} else {
-			const interactive = await vscode.window.showQuickPick(
-				g.container_manager.refresh_guest_list().then(guests => guests.map(guest => guest.name)),
-				{
-					title: "select a guest container",
-					canPickMany: false
-				}
-			);
-			if (!interactive) {
-				return;
-			}
-			return interactive;
-		}
-	}
-
 	g.context.subscriptions.push(
 		vscode.workspace.registerRemoteAuthorityResolver("distrobox", new RemoteAuthorityResolver(g)),
 		vscode.commands.registerCommand("open-remote-distrobox.connect", async (guest?: string | GuestContainer) => {
-			const guest_name = await normalize_command_argument(guest);
+			const guest_name = await normalize_command_argument(g.container_manager, guest);
 			if (guest_name) {
 				if (vscode.env.remoteAuthority == `distrobox+${encodeURIComponent(guest_name)}`) {
 					vscode.window.showInformationMessage("already connected to the same guest container");
@@ -200,13 +181,13 @@ export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals
 			}
 		}),
 		vscode.commands.registerCommand("open-remote-distrobox.connect-new-window", async (guest?: string | GuestContainer) => {
-			const guest_name = await normalize_command_argument(guest);
+			const guest_name = await normalize_command_argument(g.container_manager, guest);
 			if (guest_name) {
 				connect_to_container(guest_name, "new");
 			}
 		}),
 		vscode.commands.registerCommand("open-remote-distrobox.reopen-workspace-in-guest", async (guest?: string | GuestContainer) => {
-			const guest_name = await normalize_command_argument(guest);
+			const guest_name = await normalize_command_argument(g.container_manager, guest);
 			if (guest_name) {
 				await reopen_in_container(guest_name);
 			}
