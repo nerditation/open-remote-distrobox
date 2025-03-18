@@ -68,7 +68,10 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 			logger.appendLine(`first attemp failed: ${e}`);
 		}
 
-		const server_command_path = `$HOME/${config.server_command_path(os, arch)}`;
+		let server_command_path = config.server_command_path(os, arch);
+		if (!server_command_path.startsWith('/')) {
+			server_command_path = `$HOME/server_command_path`;
+		}
 		const server_tarball_url = config.server_download_url(os, arch);
 
 		// do it properly
@@ -189,7 +192,7 @@ export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals
 			if (guest_name) {
 				await reopen_in_container(guest_name);
 			}
-		})
+		}),
 	);
 
 }

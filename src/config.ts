@@ -5,6 +5,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import * as vscode from "vscode";
+
 /**
  * @module config
  *
@@ -32,7 +34,7 @@ interface VSCodiumProductInfo {
 }
 
 /// substitute variables in the template string
-function fill_template(template: string, env: Record<string, string>): string {
+function fill_template(template: string, env: { [variable: string]: any }): string {
 	return template.replace(/\${(.*?)}/g, (_, v) => env[v]);
 }
 
@@ -88,14 +90,11 @@ const DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodi
 
 /// return the server download url for the given os and arch
 export function server_download_url(os: string, arch: string): string {
-	const info = {
-		version: _VSCODE_PRODUCT_JSON.version.replace('-insider', ''),
-		release: _VSCODE_PRODUCT_JSON.release,
-		os,
-		arch,
-
-	};
-	const template = _VSCODE_PRODUCT_JSON.serverDownloadUrlTemplate ?? DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE;
+	const template = _VSCODE_PRODUCT_JSON.serverDownloadUrlTemplate
+		?? vscode.workspace.getConfiguration().get<string>("distroboxRemoteServer.download.urlTemplate")
+		?? DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE;
+	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON);
+	info.version = info.version.replace('-insider', '');
 	return fill_template(template, info);
 }
 
@@ -110,9 +109,17 @@ export function server_download_url(os: string, arch: string): string {
 //   and also with the host.
 //   - this might cause conflicts between different guests, e.g. gnu vs musl
 
+const DEFAULT_INSTALL_PATH_TEMPLATE = "${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}.${release}";
+
+export function server_install_path(os: string, arch: string): string {
+	const template = vscode.workspace.getConfiguration().get<string>("distroboxRemoteServer.install.pathTemplate") ?? DEFAULT_INSTALL_PATH_TEMPLATE;
+	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON);
+	info.version = info.version.replace('-insider', '');
+	return fill_template(template, info);
+}
 /**
  * return the path to the server executable
  */
 export function server_command_path(os: string, arch: string): string {
-	return `${_VSCODE_PRODUCT_JSON.serverDataFolderName}/bin/vscodium-reh-${server_identifier(os, arch)}/bin/${_VSCODE_PRODUCT_JSON.serverApplicationName}`;
+	return `${server_install_path(os, arch)}/bin/${_VSCODE_PRODUCT_JSON.serverApplicationName}`;
 }
