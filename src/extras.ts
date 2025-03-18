@@ -136,6 +136,7 @@ export function register_extra_commands(g: ExtensionGlobals) {
 			const argv = g.container_manager.cmd.rm().with_options(options).names(name).build();
 			const argv0 = argv.shift()!;
 			await run_as_task("distrobox rm", argv0, argv);
+			await vscode.commands.executeCommand("open-remote-distrobox.refresh");
 		}),
 	);
 }
