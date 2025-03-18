@@ -21,200 +21,9 @@
 
 import * as vscode from "vscode";
 
-import { ContainerManager } from "./agent";
-import { CreateCommandBuilder, CreateOptions, RmCommandBuilder, RmOptions } from "./distrobox";
+import { CreateOptions, RmCommandBuilder, RmOptions } from "./distrobox";
 import { ExtensionGlobals } from "./extension";
-
-// TODO:
-// better to show a user friendly wizard dialog, but I don't know how
-// maybe take a look at https://github.com/robstryker/vscode-wizard-example-extension
-function create_command(g: ExtensionGlobals) {
-	return async () => {
-		const manager = g.container_manager;
-
-		const opts: CreateOptions = CreateCommandBuilder.default_options();
-		opts.name = await vscode.window.showInputBox({
-			ignoreFocusOut: true,
-			title: "name",
-			placeHolder: "type the name of the distrobox container. empty input will cancel",
-		});
-		if (!opts.name || opts.name == "") {
-			return;
-		}
-
-		opts.image = await vscode.window.showQuickPick(manager.compatibility(), {
-			ignoreFocusOut: true,
-			title: "compatible image",
-			placeHolder: "select a compatible image, or press Escape for custom image",
-		});
-		if (!opts.image) {
-			opts.image = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "custom image",
-				placeHolder: "type the image you want to use, empty input will cancel"
-			});
-			if (!opts.image || opts.image == "") {
-				return;
-			}
-		}
-
-		const advanced = await vscode.window.showQuickPick(
-			[
-				"No",
-				"Yes",
-			],
-			{
-				ignoreFocusOut: true,
-				title: "advanced",
-				placeHolder: "show advanced options? (they all have good default values)"
-			}
-		);
-		if (advanced == "Yes") {
-			opts.hostname = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "hostname",
-				placeHolder: "the hostname of the guest system. default: localhost.localdomain",
-			});
-			opts.home = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "home",
-				placeHolder: "the home directory. default: same as host",
-			});
-			opts.volume = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "volume",
-				placeHolder: "additional volumes to add to the container",
-			});
-			opts.additional_flags = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "additional flags",
-				placeHolder: "additional flags to pass to the container manager command"
-			});
-			opts.additional_packages = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "addtional packages",
-				placeHolder: "additional packages to install during initial container setup"
-			});
-			opts.init_hooks = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "init hooks",
-				placeHolder: "additional commands to execute at the END of container initialization",
-			});
-			opts.pre_init_hooks = await vscode.window.showInputBox({
-				ignoreFocusOut: true,
-				title: "pre-init hooks",
-				placeHolder: "additional commands to execute at the START of container initialization",
-			});
-
-
-			const pick = (label: string, detail: string): vscode.QuickPickItem => {
-				return {
-					label,
-					detail,
-					alwaysShow: true,
-				};
-			};
-
-			const separator = (label: string): vscode.QuickPickItem => {
-				return {
-					label,
-					kind: vscode.QuickPickItemKind.Separator
-				};
-			};
-			const flag_picks = await vscode.window.showQuickPick(
-				[
-					pick("no_entry", "do not generate a container entry in the application list"),
-					pick("verbose", "show more verbosity"),
-					pick("dry_run", "only print the container manager command generated"),
-					pick("pull", "pull the image even if it exsists locally"),
-					pick("init", "use init system (like systemd) inside the container. this will make host's process not visible from within the container. (assumes --unshare-process)"),
-					pick("nvidia", "try to integrate host's nVidia drivers in the guest"),
-					separator("container namespaces"),
-					pick("unshare_all", "activate all the unshare flags below"),
-					pick("unshare_devsys", "do not share host devices and sysfs dirs from host"),
-					pick("unshare_groups", "do not forward user's additional groups into the container"),
-					pick("unshare_ipc", "do not share ipc namespace with host"),
-					pick("unshare_netns", "do not share the net namespace with host"),
-					pick("unshare_process", "do not share process namespace with host"),
-				],
-				{
-					ignoreFocusOut: true,
-					canPickMany: true,
-					title: "flags",
-					placeHolder: "select the flags you want to set",
-				}
-			) ?? [];
-			for (const flag of flag_picks) {
-				(opts as any)[flag.label] = true;
-			}
-		}
-		if ("Continue" != await vscode.window.showWarningMessage(
-			"FINAL CONFIRMAIION",
-			{
-				modal: true,
-				detail: "this is your last to cancel!\n\ncontinue to create the distrobox?",
-			},
-			"Continue"
-		)) {
-			return;
-		}
-
-		const { stdout, stderr, exit_code } = await vscode.window.withProgress(
-			{
-				location: vscode.ProgressLocation.Notification,
-				cancellable: false,
-			},
-			async (progress) => {
-				progress.report({
-					message: "this may take a while if the image needs to be pulled from servers..."
-				});
-				const result = await manager.create(opts);
-				return result;
-			}
-		);
-		let show_detail;
-		if (exit_code) {
-			show_detail = await vscode.window.showErrorMessage(
-				"error running command `distrobox create`",
-				"show detail"
-			);
-		} else {
-			show_detail = await vscode.window.showInformationMessage(
-				"command `distrobox create` run successfully",
-				"show detail"
-			);
-		}
-		if (show_detail) {
-			const detail = `
-exit code: ${exit_code ?? 0}
-
-stdout:
-
-\`\`\`console
-${stdout}
-\`\`\`
-
-stderr:
-
-\`\`\`console
-${stderr}
-\`\`\`
-`;
-
-			const doc = await vscode.workspace.openTextDocument({
-				language: "markdown",
-				content: detail,
-			});
-			await vscode.window.showTextDocument(doc);
-		}
-
-		// TODO: use agent instead of command line builder
-		if (exit_code == undefined) {
-			const guest = await manager.get(opts.name);
-			guest.create_terminal("distrobox initial setup").show(true);
-		}
-	};
-}
+import { readFile } from "fs/promises";
 
 function delete_command(g: ExtensionGlobals) {
 	return async (name?: string) => {
@@ -328,10 +137,96 @@ ${stderr}
 	};
 }
 
+let create_command_in_progress = false;
+
 export function register_extra_commands(g: ExtensionGlobals) {
 
 	g.context.subscriptions.push(
-		vscode.commands.registerCommand("open-remote-distrobox.create", create_command(g)),
+		vscode.commands.registerCommand("open-remote-distrobox.create", async () => {
+			if (create_command_in_progress) {
+				return;
+			}
+			if (!vscode.workspace.workspaceFolders) {
+				vscode.window.showErrorMessage("due to API limitation, cannot execute tasks withou an open workspace");
+				return;
+			}
+			create_command_in_progress = true;
+
+			const options: CreateOptions = await open_distrbox_create_view(g.context);
+
+			// these extra commands is distrobox specific, use the builders directly
+			const create_argv = g.container_manager.cmd.create().with_options(options).build();
+			const create_argv0 = create_argv.shift()!;
+			await run_as_task("distrobox create", create_argv0, create_argv);
+
+			const enter_argv = g.container_manager.cmd.enter(options.name, "echo", "initial setup finished").build();
+			const enter_argv0 = enter_argv.shift()!;
+			await run_as_task("distrobox initial setup", enter_argv0, enter_argv);
+
+			await vscode.commands.executeCommand("open-remote-distrobox.refresh");
+			create_command_in_progress = false;
+		}),
 		vscode.commands.registerCommand("open-remote-distrobox.delete", delete_command(g)),
 	);
+}
+
+function open_distrbox_create_view(context: vscode.ExtensionContext): Promise<CreateOptions> {
+	vscode.commands.executeCommand("setContext", "distrobox.showCreateView", true);
+	return new Promise((resolve, reject) => {
+		const disposable = vscode.window.registerWebviewViewProvider(
+			"distrobox.create",
+			{
+				async resolveWebviewView(webviewView, _context, token) {
+					webviewView.webview.options = {
+						enableScripts: true,
+						enableForms: true,
+					};
+					webviewView.webview.html = await get_html(context);
+					// TODO: send compatible image list to webview
+					webviewView.webview.onDidReceiveMessage(async (options: CreateOptions) => {
+						if (!options.name || !options.image) {
+							vscode.window.showErrorMessage("required fields not filled");
+						} else {
+							await vscode.commands.executeCommand("setContext", "distrobox.showCreateView", false);
+							disposable.dispose();
+							resolve(options);
+						}
+					});
+				},
+			},
+			{
+				webviewOptions: { retainContextWhenHidden: true }
+			}
+		);
+	});
+}
+
+async function get_html(context: vscode.ExtensionContext) {
+	const src_path = context.asAbsolutePath('media/distrobox-create-view.html');
+	return await readFile(src_path, { encoding: "utf8" });
+}
+
+async function run_as_task(task_name: string, command: string, args: string[]) {
+	const task_id = `distrobox-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+	const task = new vscode.Task(
+		{
+			type: "distrobox",
+			id: task_id,
+		},
+		vscode.TaskScope.Workspace,
+		task_name,
+		"open-remote-distrobox",
+		new vscode.ProcessExecution(command, args),
+	);
+	task.presentationOptions.echo = true;
+	task.presentationOptions.focus = false;
+	task.presentationOptions.panel = vscode.TaskPanelKind.New;
+	await vscode.tasks.executeTask(task);
+	await new Promise<void>((resolve, reject) => {
+		vscode.tasks.onDidEndTask(e => {
+			if (e.execution.task.definition.id == task_id) {
+				resolve();
+			}
+		});
+	});
 }

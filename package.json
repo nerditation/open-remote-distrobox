@@ -24,6 +24,7 @@
 	],
 	"activationEvents": [
 		"onView:distrobox.guests",
+		"onView:distrobox.create",
 		"onResolveRemoteAuthority:distrobox"
 	],
 	"capabilities": {
@@ -91,6 +92,14 @@
 					"remoteName": "distrobox",
 					"group": "details@1",
 					"when": "remoteName == distrobox"
+				},
+				{
+					"type": "webview",
+					"name": "Create New Distrobox",
+					"id": "distrobox.create",
+					"remoteName": "distrobox",
+					"group": "targets@2",
+					"when": "distrobox.showCreateView"
 				}
 			]
 		},

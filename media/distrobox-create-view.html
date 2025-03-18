@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Create a New Distrobox Container</title>
+	<style>
+		.collapsed {
+			display: none;
+		}
+	</style>
+</head>
+
+<body>
+	<fieldset>
+		<legend><label for="">required fields</label></legend>
+		<div title="name of the container to create">
+			<label for="name">Name:</label>
+			<input type="text" id="name" required />
+		</div>
+		<div title="choose an image for the container">
+			<label for="image">Image:</label>
+			<input type="text" id="image" required list="compatible" />
+		</div>
+		<datalist id="compatible">
+		</datalist>
+	</fieldset>
+	<fieldset>
+		<legend onclick="toggle_fieldset_content(this);"><a href="#">optional flags ⏷</a></legend>
+		<div class="collapsed">
+			<div title="use init system (like systemd) inside the container">
+				<input type="checkbox" id="init" />
+				<label for="init">Init</label>
+			</div>
+			<div title="try to integrate host's nVidia drivers in the guest">
+				<input type="checkbox" id="nvidia" />
+				<label for="nvidia">nVidia</label>
+			</div>
+			<div title="pull the image even if it exists locally">
+				<input type="checkbox" id="pull" />
+				<label for="pull">Pull</label>
+			</div>
+			<div title="show more verbosity">
+				<input type="checkbox" id="verbose" />
+				<label for="verbose">Verbose</label>
+			</div>
+			<div title="do not generate a container entry in the application list">
+				<input type="checkbox" id="no_entry" />
+				<label for="no_entry">No Entry</label>
+			</div>
+		</div>
+	</fieldset>
+	<fieldset>
+		<legend onclick="toggle_fieldset_content(this);"><a href="#">advanced parameters ⏷</a></legend>
+		<div class="collapsed">
+			<div
+				title="select a custom HOME directory for the container. Useful to avoid host's home littering with temp files.">
+				<label for="home">Home:</label>
+				<input type="text" id="home" />
+			</div>
+			<di title="default: localhost.localdomain">
+				<label for="hostname">Hostname:</label>
+				<input type="text" id="hostname" />
+			</di>
+			<div title="additional volumes to add to the container">
+				<label for="volume">Volume:</label>
+				<input type="text" id="volume" />
+			</div>
+			<div title="additional flags to pass to the container manager command">
+				<label for="additional_flags">Additional Flags:</label>
+				<input type="text" id="additional_flags" />
+			</div>
+			<div title="additional packages to install during initial container setup">
+				<label for="additional_packages">Additional Packages:</label>
+				<input type="text" id="additional_packages" />
+			</div>
+			<div title="additional commands to execute at the end of container initialization">
+				<label for="init_hooks">Init Hooks:</label>
+				<input type="text" id="init_hooks" />
+			</div>
+			<div title="additional commands to execute at the start of container initialization">
+				<label for="pre_init_hooks">PreInit Hooks:</label>
+				<input type="text" id="pre_init_hooks" />
+			</div>
+		</div>
+	</fieldset>
+	<fieldset>
+		<legend onclick="toggle_fieldset_content(this);"><a href="#">advanced flags ⏷</a></legend>
+		<div class="collapsed">
+			<div title="activate all the unshare flags below">
+				<input type="checkbox" id="unshare_all" />
+				<label for="unshare_all">Unshare All</label>
+			</div>
+			<div title="do not share host devices and sysfs dirs from host">
+				<input type="checkbox" id="unshare_devsys" />
+				<label for="unshare_devsys">Unshare Dev & Sys</label>
+			</div>
+			<div title="do not forward user's additional groups into the container">
+				<input type="checkbox" id="unshare_groups" />
+				<label for="unshare_groups">Unshare Groups</label>
+			</div>
+			<div title="do not share ipc namespace with host">
+				<input type="checkbox" id="unshare_ipc" />
+				<label for="unshare_ipc">Unshare IPC</label>
+			</div>
+			<div title="do not share the net namespace with host">
+				<input type="checkbox" id="unshare_netns" />
+				<label for="unshare_netns">Unshare Netns</label>
+			</div>
+			<div title="do not share process namespace with host">
+				<input type="checkbox" id="unshare_process" />
+				<label for="unshare_process">Unshare Process</label>
+			</div>
+		</div>
+	</fieldset>
+
+	<button>Create New Container</button>
+</body>
+
+<foot>
+	<script type="text/javascript">
+		const vscode = acquireVsCodeApi();
+		document.querySelector("button").onclick = (e) => {
+			const options = {};
+			for (const input of document.querySelectorAll("input")) {
+				if (input.type == 'checkbox') {
+					options[input.id] = input.checked;
+				} else if (input.type == 'text' && input.value != '') {
+					options[input.id] = input.value;
+				}
+			}
+			vscode.postMessage(options);
+		};
+
+		function toggle_fieldset_content(legend) {
+			legend.nextElementSibling.classList.toggle("collapsed");
+		}
+	</script>
+</foot>
+
+</html>

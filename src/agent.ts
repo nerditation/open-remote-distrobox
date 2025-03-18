@@ -39,7 +39,7 @@ const execFile = promisify(cp.execFile);
 export class ContainerManager {
 
 	private constructor(
-		private cmd: MainCommandBuilder,
+		public cmd: MainCommandBuilder,
 	) {
 	}
 
