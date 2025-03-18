@@ -75,12 +75,10 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 		if (isNaN(port)) {
 			logger.appendLine("preparing server control script");
 
-			await guest.exec("mkdir", "-p", server_session_dir);
-			await guest.write_to_file(
+			await guest.write_executable_file(
 				control_script_path,
 				setup.get_control_script(server_command_path)
 			);
-			await guest.exec("chmod", "+x", control_script_path);
 
 			logger.appendLine(`control script written to ${control_script_path}`);
 

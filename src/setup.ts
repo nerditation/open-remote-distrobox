@@ -10,7 +10,6 @@ import { arch as node_arch } from "os";
 import * as vscode from "vscode";
 
 import { GuestContainer } from "./agent";
-import { ExtensionGlobals } from "./extension";
 
 
 /**
@@ -136,6 +135,10 @@ function linux_arch_to_nodejs_arch(arch: string): string {
 	}
 }
 
+/**
+ * this function downloads the server tarball from the given url, with a
+ * progress bar, returns a `Buffer`
+ */
 export async function download_server_tarball(url: string,): Promise<Buffer> {
 	return vscode.window.withProgress({
 		location: vscode.ProgressLocation.Notification,
@@ -170,6 +173,39 @@ export async function download_server_tarball(url: string,): Promise<Buffer> {
 	});
 }
 
+/**
+ * this is a bash script running in the guest container, which implements the
+ * core functionalities to start and stop the server, and bookkeep some session
+ * states.
+ *
+ * this script requires `bash` specifically, which is assumed to be installed
+ * for distrobox managed containers by default. the script also uses certain
+ * "essential" programs, which should also be guaranteed by `distrbox-init`,
+ * see:
+ *
+ * https://github.com/89luca89/distrobox/blob/main/docs/posts/distrobox_custom.md#requirements
+ *
+ * but just for documentary purpose and also for the possibility if this extension
+ * would be extended to general containers, not just distrbox, the list in current
+ * implementation includes:
+ *
+ * - `ps` from `procps-ng`, to find pid of the vscodium remote server.
+ *   - busybox is NOT enough, the `codium-server` command is a wrapper script,
+ *     which launches the real server process (nodejs). when running the
+ *     server without tty, sending signals to the shell process of the wrapper
+ *     script does not kill the real server process. so I need the `ps` command
+ *     to find the child process of the wrapper script
+ * - `ss` from `iproute2`, to check server's tcp port is open
+ * - regex utils like `grep` and `sed`
+ *   - only need basic features, so busybox is good enough
+ * - `xargs` from `findutils`, used as a `trim` function
+ *   - alternatives exists so it is not required, I choose it because it's short
+ * - `tar`, for server installation
+ *   - currently the server tarball is `gzip` compressed, so busybox is ok
+ * - common commands from `coreutils`, such as `cat`, `mkdir`, `nohup`, etc
+ * - `flock` from `util-linux`, to synchronize potential concurrent access
+ *   - busybox should also be ok.
+ */
 export function get_control_script(server_command_path: string) {
 	const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
 	const exports = [];

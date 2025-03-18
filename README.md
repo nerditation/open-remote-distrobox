@@ -21,22 +21,32 @@ I try to support these use cases:
 
 - vscodium is installed locally on the host
 - vscodium is installed via flatpak
-  - will use `flatpak-spawn --host` to run the `distrobox` command
+  - will use `host-spawn` to run the `distrobox` command
 - vscodium is installed inside a guest distrobox
-  - will use `distrobox-host-exec` to run the `distrobox` command
+  - will use `host-spawn` to run the `distrobox` command
 
 I didn't test the extension for all these scenarios, any feedbacks are welcome.
 
 
-## some notes
+## getting started
 
-this extension neither depends on, nor conflicts with [vscode-remote-oss].
+if you have not installed [vscodium] and [distrobox] already, install them first.
+distrobox is installed out of the box on `opensuse` [MicroOS] based immutable
+systems, including the desktop variants `Aeon` and `Kalpa`, but if you are using
+other distributions, it should be installable using the official package manager.
+if it is not available, you can download from the [distrobox] github repository
+or website.
 
-I wrote and tested this extension for [vscodium], it probably won't work with
-other `vscode` distributions.
+if you don't have `vscodium`, I recommend the `flatpak` version.
 
-just like [vscode-remote-oss], this extension needs proposed apis to activate.
-you can run the `Preferences: Configure Runtime Arguments ` command and add:
+this extension is published to `open-vsx.org`, so just search `distrobox` in
+vscodium's extension panel (press `Ctrl + Shift + X` to open it), you should
+be able to install it. you can also download the `.vsix` package from
+`open-vsx.org` or from the [releases] page of this github repository.
+
+after installation, you need to enable proposed api for this extension, this can
+be done by running the command `Preferences: Configure Runtime Arguments`, and
+add the following content to the opened `argv.json` file:
 
 ```jsonc
 {
@@ -48,6 +58,56 @@ you can run the `Preferences: Configure Runtime Arguments ` command and add:
 	//...
 }
 ```
+
+save the file an restart vscodium, now you should be able to open the remote
+explorer view in the side bar. if you have other extensions that also contribute
+to the remote explorer, such as [vscode-remote-oss], you might need to switch
+the remote provider in the dropdown list on top of the remote explorer view.
+
+you should see the list of the guest containers managed by `distrobox`. you can
+connect the current window to the container, or open a new window and connect
+to it. if you have a workspace open, you can reopen it inside the container.
+
+these commands are also available if you click the "remote indicator" in the
+bottom left corner of the window, on the status bar.
+
+
+## about the implementation
+
+after some back and forth, I came to realize this extension could potentially
+be extended to non-`distrobox` containers as well. I believe the core
+functionality can be implemented with `podman` directly, thus it might possibly
+serve as (at least partially) a replacement for the `attached-container`
+authority, one of many authorities registered by the microsoft `devcontainers`
+extension.
+
+however, I don't plan to implement this, simply because I don't have the need,
+but if someone want to implement it, I'm happy to discuss the implementation
+details with you.
+
+because I want to this extension to work on the host as well as inside a
+container such as the `flatpak` sandbox, I can only control the guest
+container using the `distrobox enter` command, and rely on the guest system to
+have some programs installed. this works for all `distrobox` managed container,
+but not necessarily available out of the box for all containers. specifically,
+busybox based distros like alpine linux needs some additional packages to
+be installed. check the source code for details.
+
+if the `distrobox` command is run indirectly through `host-spawn` (or
+`flatpak-spawn --host`) from a container, it will not inherit the environment
+block of the vscodium process, so I inject the configured environment variables
+into the bash script that launches the vscodium remote server.
+
+this is not ideal, but it is easier to implement. alternative should be to inject
+them into the `host-spawn` command, such as `foo=123 bar=456 host-spawn --env foo,bar`
+
+
+## some notes
+
+this extension neither depends on, nor conflicts with [vscode-remote-oss].
+
+I wrote and tested this extension for [vscodium], it probably won't work with
+other `vscode` distributions.
 
 this extension registered the remote authority `distrobox`, so it will be
 automatically activated when a url like this is opened:
@@ -76,6 +136,30 @@ fi
 ${code_command} --folder-uri="vscode-remote://distrobox+${container_name}/$(realpath "${2}")"
 ```
 
+here's anther wrapper script I use to open `vscodium`. this script tries to
+use the `CONTAINER_ID` environment variable to detect if it is invoked inside
+a container or on the host system.
+
+```bash
+#!/bin/sh
+
+# change this if you are not using flatpak
+codium_command="flatpak run com.vscodium.codium"
+
+if [ -n "${CONTAINER_ID}" ]; then
+	codium_command="distrobox-host-exec ${codium_command}"
+	if [ -f "$1" ]; then
+		exec $codium_command --file-uri="vscode-remote://distrobox+${CONTAINER_ID}$(realpath "$1")"
+	elif [ -d "$1" ]; then
+		exec $codium_command --folder-uri="vscode-remote://distrobox+${CONTAINER_ID}$(realpath "$1")"
+	else
+		exec $codium_command --remote "distrobox+${CONTAINER_ID}" "$@"
+	fi
+else
+	exec $codium_command "$@"
+fi
+```
+
 
 ## license
 
@@ -93,3 +177,5 @@ SPDX-PackageCopyrightText: Copyright nerditation <nerditation@users.noreply.gith
 [vscode-remote-oss]: https://github.com/xaberus/vscode-remote-oss
 [vscode-distrobox]: https://github.com/89luca89/distrobox/blob/3b9f0e8d3d8bd102e1636a22afffafe00777d30b/extras/vscode-distrobox
 [integrate-vscode-distrobox]: https://distrobox.it/posts/integrate_vscode_distrobox/
+[releases]: https://github.com/nerditation/open-remote-distrobox/releases
+[MicroOS]: https://microos.opensuse.org/

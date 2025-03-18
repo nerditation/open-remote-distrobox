@@ -24,7 +24,7 @@ import * as vscode from "vscode";
 import { CreateOptions, RmCommandBuilder, RmOptions } from "./distrobox";
 import { ExtensionGlobals } from "./extension";
 import { readFile } from "fs/promises";
-import { GuestContainer } from "./agent";
+import { ContainerManager, GuestContainer } from "./agent";
 import { normalize_command_argument as normalize_guest_name_argument } from "./utils";
 
 async function double_confirm(name: string) {
@@ -155,7 +155,7 @@ function open_distrbox_create_view(g: ExtensionGlobals): Promise<CreateOptions> 
 					webviewView.webview.html = await get_html(g.context);
 					webviewView.webview.onDidReceiveMessage(async (message: "loaded" | CreateOptions) => {
 						if (message == "loaded") {
-							webviewView.webview.postMessage(await g.container_manager.compatibility());
+							webviewView.webview.postMessage(await get_compatible_images(g.container_manager));
 							return;
 						}
 						const options = message;
@@ -174,6 +174,14 @@ function open_distrbox_create_view(g: ExtensionGlobals): Promise<CreateOptions> 
 			}
 		);
 	});
+}
+
+/**
+ * a wrapper for `distrobox create --compatibility` command
+ */
+async function get_compatible_images(manager: ContainerManager): Promise<string[]> {
+	const { stdout } = await manager.cmd.create().compatibility().exec();
+	return stdout.split('\n').map(s => s.trim()).filter(s => s != "");
 }
 
 async function get_html(context: vscode.ExtensionContext) {

@@ -10,7 +10,7 @@ import * as vscode from "vscode";
 
 import which = require("which");
 
-import { CreateOptions, EnterCommandBuilder, MainCommandBuilder, RmCommandBuilder, RmOptions } from "./distrobox";
+import { EnterCommandBuilder, MainCommandBuilder } from "./distrobox";
 import { promisify } from "util";
 
 const execFile = promisify(cp.execFile);
@@ -32,9 +32,12 @@ const execFile = promisify(cp.execFile);
 
 
 /**
- * represents the main `distrobox` command
+ * an abstraction for the `distrobox` command, may change this to an interface.
  *
- * I call it distro manager, similar to "container manager" like `podman`
+ * to enable the possibility to replace with different container manager in
+ * the future, e.g. it should be possible to use `podman` directly.
+ *
+ * but I don't plan to do it since I don't really have the need.
  */
 export class ContainerManager {
 
@@ -124,17 +127,9 @@ export class ContainerManager {
 		const expected_columns = ["ID", "NAME", "STATUS", "IMAGE"];
 		column_names.every((column, i) => console.assert(column == expected_columns[i]));
 		return lines.map((line) => {
-			const [id, name, status, image] = line.split("|").map(s => s.trim());
-			return new GuestContainer(this.cmd.enter(name).no_tty().no_workdir(), id, name, status, image);
+			const [id, name, _status, image] = line.split("|").map(s => s.trim());
+			return new GuestContainer(this.cmd.enter(name).no_tty().no_workdir(), id, name, image);
 		});
-	}
-
-	/**
-	 * a wrapper for `distrobox create --compatibility` command
-	 */
-	public async compatibility(): Promise<string[]> {
-		const { stdout } = await this.cmd.create().compatibility().exec();
-		return stdout.split('\n').map(s => s.trim()).filter(s => s != "");
 	}
 
 	/**
@@ -150,7 +145,16 @@ export class ContainerManager {
 }
 
 /**
- * information about a specific guest container
+ * information about a specific guest container,
+ *
+ * this type is an abstraction of primitive operations needed to setup the
+ * vscodium remote server.
+ *
+ * in theory, the absolute minimal requirement is the ability to run commands
+ * in the guest container and access to the `stdin` and `stdout` of the commands.
+ *
+ * currently, most functionality is implemented in a bash script, which is
+ * written to the container.
  */
 export class GuestContainer {
 	// fields corresponding to the columns of the output of `distrobox list`
@@ -161,38 +165,40 @@ export class GuestContainer {
 		private cmd: EnterCommandBuilder,
 		public readonly id: string,
 		public readonly name: string,
-		private readonly status: string,
 		public readonly image: string,
 	) {
 	}
 
 	/**
-	 * run the given command in the terminal pane
+	 * a primitive to write to the given path and set the executable permission
+	 *
+	 * this is used to write the server control bash script to the container
 	 */
-	public create_terminal(name: string, ...args: string[]) {
-		const argv = this.cmd.args(...args).build();
-		const argv0 = argv.shift();
-		const terminal = vscode.window.createTerminal({
-			name,
-			shellPath: argv0,
-			shellArgs: argv,
-			isTransient: true,
-			message: `this is a terminal for the guest distro "${this.name}"`
-		});
-		return terminal;
-	}
-
-	public write_to_file(path: string, data: string | Uint8Array) {
+	public write_executable_file(path: string, data: string | Uint8Array) {
 		// need bash for redirection, and variable expansion, such as "$XDG_RUNTIME_DIR"
-		return this.exec_with_input(data, "bash", "-c", `cat >"${path}"`);
+		return this.exec_with_input(data, "bash", "-c", `mkdir -p "$(dirname "${path}")" && cat >"${path}" && chmod +x "${path}"`);
 	}
 
+	/**
+	 * a primitive to read the content of the given file as utf8 text
+	 *
+	 * this is unnecessary to setup the remote server and resolve the authority,
+	 * it's currently used for the details view
+	 */
 	public read_text_file(path: string): Promise<string> {
 		return this.exec("bash", "-c", `cat "${path}"`).then(output => output.stdout);
 	}
 
+	/**
+	 * a primitive to check if the given file exist
+	 *
+	 * this is used to decide whether the server is already installed.
+	 *
+	 * technically this is unnecessary, as long we can execute command in the
+	 * container.
+	 */
 	public async is_file(path: string): Promise<boolean> {
-		const output = await this.exec("bash", "-c", `if [[ -f "${path}" ]]; then echo true; else echo false; fi\n`);
+		const output = await this.exec("bash", "-c", `if [[ -f "${path}" ]]; then echo true; else echo false; fi`);
 		return output.stdout.trim() == "true";
 	}
 
@@ -213,6 +219,12 @@ export class GuestContainer {
 
 	/**
 	 * exec_with_input: similar to `exec`, but send `input` to `stdin`
+	 *
+	 * in theory, this is the absolute minimum requirement for the container
+	 * manager. as long we can run command inside the container, and pipe
+	 * data to its `stdin` and from its `stdout`, (assuming the container
+	 * is running a basic linux distribution), everthing else can be implemented
+	 * on top of this.
 	 */
 	public exec_with_input(input: string | Uint8Array, ...command: string[]) {
 		const argv = this.cmd.args(...command).build();
