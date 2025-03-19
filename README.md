@@ -71,6 +71,15 @@ to it. if you have a workspace open, you can reopen it inside the container.
 these commands are also available if you click the "remote indicator" in the
 bottom left corner of the window, on the status bar.
 
+I also created a simple UI for as wrapper for the `distrobox create|rm` commands,
+but these are not related to remote server setup and autority resolution. it
+just felt incomplet to me that I have a list of guests, but I cannot add to it
+or remove from it. the UI is very primitive and I have no plan to improve it.
+
+also, the UI support many, but NOT ALL of the command line options. running
+`distrobox create|rm` from command line is still my preferred way to manage
+guest containers with distrobox.
+
 
 ## about the implementation
 
