@@ -70,7 +70,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 
 		let server_command_path = config.server_command_path(os, arch);
 		if (!server_command_path.startsWith('/')) {
-			server_command_path = `$HOME/server_command_path`;
+			server_command_path = `$HOME/${server_command_path}`;
 		}
 		const server_tarball_url = config.server_download_url(os, arch);
 

@@ -10,7 +10,7 @@
 	"name": "open-remote-distrobox",
 	"displayName": "Open Remote - Distrobox",
 	"description": "manages vscodium remote extension host for distrobox",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"publisher": "nerditation",
 	"private": true,
 	"preview": true,
@@ -203,12 +203,14 @@
 					"scope": "application",
 					"markdownDescription": "the template of the url to download the remote server, default is vscodium's github releases.\n\n**IMPORTANT**: if the 'product.json' file contains a `serverDownloadUrlTemplate` (e.g. like [this](https://github.com/VSCodium/vscodium/blob/5ca1fc84d377a155d9369b715c04f23e8dbac090/patches/insider/add-remote-url.patch)), this configuration will be ignored.\n\nvalid variables are:\n- version: in Major.Minor.Patch format, example: 1.98.0\n- release: vscodium specific release number, example: 25067\n- os: the os name of vscodium builds, example: linux, alpine\n- arch: the arch name of vscodium builds, example: x64, arm64\n- commit: the git commit hash, example: a73b8210995797cf220f3b0c23690c5747b42447\n- quality: either 'stable' or 'insider'\n",
 					"examples": "https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz",
-					"type": "string"
+					"type": "string",
+					"default": null
 				},
 				"distroboxRemoteServer.install.pathTemplate": {
 					"scope": "application",
 					"markdownDescription": "the template of the path where the vscodium remote server will be installed, default is `${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}.${release}`\n\nall variables in `distroboxRemoteServer.download.urlTemplate` are available too, and an additonal variable is also available:\n- serverDataFolderName: where the remote server stores its data, example: `.vscodium-server`, `.vscodium-server-insiders`\n\n**NOTE**: if this path doesn't start with `/`, the home directory $HOME is prepended to it.\n\n**NOTE**: the path to the server command is encoded into the bash script, changes to this setting will not take effect immediately for guests whose control script had already been generated.",
 					"type": "string",
+					"default": null,
 					"examples": "${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}.${release}"
 				}
 			}
