@@ -98,10 +98,6 @@ export function register_extra_commands(g: ExtensionGlobals) {
 				vscode.window.showInformationMessage("another create command didn't finish");
 				return;
 			}
-			if (!vscode.workspace.workspaceFolders) {
-				vscode.window.showErrorMessage("due to API limitation, cannot execute tasks withou an open workspace");
-				return;
-			}
 			create_command_in_progress = true;
 
 			const options: CreateOptions = await open_distrbox_create_view(g);
@@ -110,6 +106,8 @@ export function register_extra_commands(g: ExtensionGlobals) {
 			const create_argv = g.container_manager.cmd.create().with_options(options).build();
 			const create_argv0 = create_argv.shift()!;
 			await run_as_task("distrobox create", create_argv0, create_argv);
+
+			vscode.window.showInformationMessage("running initial setup, this may take a while");
 
 			const enter_argv = g.container_manager.cmd.enter(options.name, "echo", "initial setup finished").build();
 			const enter_argv0 = enter_argv.shift()!;
@@ -191,15 +189,19 @@ async function get_html(context: vscode.ExtensionContext) {
 
 async function run_as_task(task_name: string, command: string, args: string[]) {
 	const task_id = `distrobox-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+	// the doc says global tasks are not supported, but it seems to be working,
+	// if I set `cwd` manually. if `cwd` is missing, it will try to expand the
+	// `${workspaceFoler}` variable, which can throw if not in a workspace
+	// here it doesn't really matter what `cwd` is, as long it's valid directory.
 	const task = new vscode.Task(
 		{
 			type: "distrobox",
 			id: task_id,
 		},
-		vscode.TaskScope.Workspace,
+		vscode.TaskScope.Global,
 		task_name,
 		"open-remote-distrobox",
-		new vscode.ProcessExecution(command, args),
+		new vscode.ProcessExecution(command, args, { cwd: process.cwd() }),
 	);
 	task.presentationOptions.echo = true;
 	task.presentationOptions.focus = false;
