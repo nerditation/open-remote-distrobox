@@ -76,6 +76,12 @@
 				"title": "Delete a Distrobox Guest Container",
 				"category": "Distrobox",
 				"icon": "$(trash)"
+			},
+			{
+				"command": "open-remote-distrobox.delete-control-script",
+				"title": "Delete the Existing (Outdated) Control Script for a Guest",
+				"category": "Distrobox",
+				"icon": "$(sync)"
 			}
 		],
 		"views": {
