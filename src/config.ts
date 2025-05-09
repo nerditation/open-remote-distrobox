@@ -26,7 +26,7 @@ interface VSCodiumProductInfo {
 	quality: "insider" | "stable";
 	commit: string;
 	version: string;
-	release: string;
+	release?: string;
 	serverApplicationName: string,
 	serverDataFolderName: string,
 	// only available in insider builds, but not in stable releases
@@ -38,8 +38,8 @@ function fill_template(template: string, env: { [variable: string]: any }): stri
 	return template.replace(/\${(.*?)}/g, (_, v) => env[v]);
 }
 
-const INSIDER_SYSTEM_ID_TEMPLATE = "${os}-${arch}-${version}.${release}-insider";
-const STABLE_SYSTEM_ID_TEMPLATE = "${os}-${arch}-${version}.${release}";
+const INSIDER_SYSTEM_ID_TEMPLATE = "${os}-${arch}-${version}${maybe_release}-insider";
+const STABLE_SYSTEM_ID_TEMPLATE = "${os}-${arch}-${version}${maybe_release}";
 
 /**
  * return a unique identifier based on the version, os, arch
@@ -60,11 +60,18 @@ const STABLE_SYSTEM_ID_TEMPLATE = "${os}-${arch}-${version}.${release}";
  * with each other and with the host, so we must also take into account the os
  * and arch, for example, you canno run a `reh-linux-$arch-$ver` server on a
  * alpine linux distribution, which uses the musl libc instead of the gnu libc.
+ *
+ * UPDATE:
+ *
+ * since version 1.99, vscodium employs a new version numbering schema, see:
+ * https://github.com/VSCodium/vscodium/pull/2299
+ *
+ * this will support both the old and the new schemas.
  */
 export function server_identifier(os: string, arch: string): string {
 	const info = {
 		version: _VSCODE_PRODUCT_JSON.version.replace('-insider', ''),
-		release: _VSCODE_PRODUCT_JSON.release,
+		maybe_release: _VSCODE_PRODUCT_JSON.release ? `.${_VSCODE_PRODUCT_JSON.release}`: "",
 		os,
 		arch,
 	};

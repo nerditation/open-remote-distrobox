@@ -202,7 +202,7 @@ export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals
 				const control_script_name = `control-${g.context.extension.packageJSON.version}.sh`;
 				const full_path = `$XDG_RUNTIME_DIR/${server_session_dir_name}/${control_script_name}`;
 				await guest.exec("bash", "-c", `rm -f "${full_path}"`);
-				vscode.window.showInformationMessage(`control script ${full_path} deleted, next time you connect to guest ${guest_name}, an new script will be generated`);
+				vscode.window.showInformationMessage(`control script ${full_path} deleted, next time you connect to guest ${guest_name}, a new script will be generated`);
 			}
 		})
 	);
