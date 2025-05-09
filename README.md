@@ -110,6 +110,12 @@ into the bash script that launches the vscodium remote server.
 this is not ideal, but it is easier to implement. alternative should be to inject
 them into the `host-spawn` command, such as `foo=123 bar=456 host-spawn --env foo,bar`
 
+however, this has the drawback that if you changed the host environment variables,
+the change will not be applied to the remote server. in such cases, you need to
+run the command `open-remote-distrobox.delete-control-script` manually, which
+will delete the existing control script so a new script will be generated
+next time you connect to the guest.
+
 
 ## some notes
 
