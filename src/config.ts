@@ -71,7 +71,7 @@ const STABLE_SYSTEM_ID_TEMPLATE = "${os}-${arch}-${version}${maybe_release}";
 export function server_identifier(os: string, arch: string): string {
 	const info = {
 		version: _VSCODE_PRODUCT_JSON.version.replace('-insider', ''),
-		maybe_release: _VSCODE_PRODUCT_JSON.release ? `.${_VSCODE_PRODUCT_JSON.release}`: "",
+		maybe_release: _VSCODE_PRODUCT_JSON.release ? `.${_VSCODE_PRODUCT_JSON.release}` : "",
 		os,
 		arch,
 	};
@@ -93,14 +93,15 @@ export function session_identifier(os: string, arch: string, container_name: str
 }
 
 // this is hardcoded for now
-const DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz';
+// it seems serverDownloadUrlTemplate is available in stable product.json now
+const DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}${maybe_release}/vscodium-reh-${os}-${arch}-${version}${maybe_release}.tar.gz';
 
 /// return the server download url for the given os and arch
 export function server_download_url(os: string, arch: string): string {
 	const template = _VSCODE_PRODUCT_JSON.serverDownloadUrlTemplate
 		?? vscode.workspace.getConfiguration().get<string>("distroboxRemoteServer.download.urlTemplate")
 		?? DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE;
-	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON);
+	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON, { maybe_release: _VSCODE_PRODUCT_JSON.release ? `.${_VSCODE_PRODUCT_JSON.release}` : "" });
 	info.version = info.version.replace('-insider', '');
 	return fill_template(template, info);
 }
@@ -110,17 +111,18 @@ export function server_download_url(os: string, arch: string): string {
 // `~/.vscodium-server/bin/${commit_hash}`, which I believe follows the
 // convention of the microsoft extensions.
 // I use different path for several reasons:
-// - I'm only interested in `VSCodium`, which has a `release` number to uniquely
-//   identify the exact release version.
+// - I'm only interested in `VSCodium`, which ~~has a `release` number to uniquely
+//   identify the exact release version.~~ ensures the version number is unique
+//   since 1.99, see vscodium pr 2299
 // - distrobox guests typically share the `$HOME` directory, between each other,
 //   and also with the host.
 //   - this might cause conflicts between different guests, e.g. gnu vs musl
 
-const DEFAULT_INSTALL_PATH_TEMPLATE = "${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}.${release}";
+const DEFAULT_INSTALL_PATH_TEMPLATE = "${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}${maybe_release}";
 
 export function server_install_path(os: string, arch: string): string {
 	const template = vscode.workspace.getConfiguration().get<string>("distroboxRemoteServer.install.pathTemplate") ?? DEFAULT_INSTALL_PATH_TEMPLATE;
-	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON);
+	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON, { maybe_release: _VSCODE_PRODUCT_JSON.release ? `.${_VSCODE_PRODUCT_JSON.release}` : "" });
 	info.version = info.version.replace('-insider', '');
 	return fill_template(template, info);
 }
