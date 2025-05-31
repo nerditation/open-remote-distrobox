@@ -94,6 +94,7 @@ export function session_identifier(os: string, arch: string, container_name: str
 
 // this is hardcoded for now
 // it seems serverDownloadUrlTemplate is available in stable product.json now
+// https://github.com/VSCodium/vscodium/commit/13633eca2881850316670cbb2e4a40d6064ad301
 const DEFAULT_SERVER_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}${maybe_release}/vscodium-reh-${os}-${arch}-${version}${maybe_release}.tar.gz';
 
 /// return the server download url for the given os and arch
