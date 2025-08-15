@@ -88,7 +88,13 @@ export async function detect_platform(guest: GuestContainer): Promise<[string, s
 		// but the container userland might be different, at least on x86,
 		// for example, a x86_64 host can run i686 container.
 		const ldd_info = (await guest.exec("ldd", "/bin/true")).stdout;
-		const glibc_ld_path = ldd_info.match(/ld-linux-(.+).so/)!;
+		// the output of ldd may look like this when the is dynamic linker resolved differently:
+		//   `/lib64/ld-linux-x86-64.so.2 => /usr/lib64/ld-linux-x86-64.so.2 (0x00007faa96298000)`
+		// I didn't know this because the systems I tested (opensuse and ubuntu) is like this:
+		//   `/lib64/ld-linux-x86-64.so.2 (0x00007fce8f048000)`
+		// the simple capture `(.+)` will greedily catpture extra stuff until the last `.so`
+		// excluding the dot character from the capture should work around this issue.
+		const glibc_ld_path = ldd_info.match(/ld-linux-([^.]+)\.so/)!;
 		arch = linux_arch_to_nodejs_arch(glibc_ld_path[1]);
 	} else {
 		throw ("distro's libc is neither musl nor glibc");
