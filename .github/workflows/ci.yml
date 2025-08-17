@@ -36,3 +36,7 @@ jobs:
           pnpm run lint
       - name: generate vsix package
         run: pnpm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-package
+          path: *.vsix
