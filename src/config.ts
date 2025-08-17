@@ -30,7 +30,8 @@ interface VSCodiumProductInfo {
 	serverApplicationName: string,
 	serverDataFolderName: string,
 	// only available in insider builds, but not in stable releases
-	serverDownloadUrlTemplate?: string
+	serverDownloadUrlTemplate?: string,
+	nameShort: string,
 }
 
 /// substitute variables in the template string
@@ -119,10 +120,18 @@ export function server_download_url(os: string, arch: string): string {
 //   and also with the host.
 //   - this might cause conflicts between different guests, e.g. gnu vs musl
 
-const DEFAULT_INSTALL_PATH_TEMPLATE = "${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}${maybe_release}";
+const DEFAULT_INSTALL_PATH_TEMPLATE_VSCODIUM = "${serverDataFolderName}/bin/vscodium-reh-${os}-${arch}-${version}${maybe_release}";
+
+// other editors like cursor may not have a unique version release number,
+// use the commit hash like "conventional" extensions do
+// but still want to differentiate os and arch because distrobox may share $HOME
+// otherwise, it may cause a conflict, e.g. between os `linux` and `alpine`
+
+const DEFAULT_INSTALL_PATH_TEMPLATE_OTHER = "${serverDataFolderName}/bin/${commit}-${os}-${arch}";
 
 export function server_install_path(os: string, arch: string): string {
-	const template = vscode.workspace.getConfiguration().get<string>("distroboxRemoteServer.install.pathTemplate") ?? DEFAULT_INSTALL_PATH_TEMPLATE;
+	const default_template = _VSCODE_PRODUCT_JSON.nameShort == "VSCodium" ? DEFAULT_INSTALL_PATH_TEMPLATE_VSCODIUM : DEFAULT_INSTALL_PATH_TEMPLATE_OTHER;
+	const template = vscode.workspace.getConfiguration().get<string>("distroboxRemoteServer.install.pathTemplate") ?? default_template;
 	const info = Object.assign({ os, arch }, _VSCODE_PRODUCT_JSON, { maybe_release: _VSCODE_PRODUCT_JSON.release ? `.${_VSCODE_PRODUCT_JSON.release}` : "" });
 	info.version = info.version.replace('-insider', '');
 	return fill_template(template, info);
