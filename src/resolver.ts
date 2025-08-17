@@ -68,27 +68,29 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 			logger.appendLine(`first attemp failed: ${e}`);
 		}
 
-		let server_command_path = config.server_command_path(os, arch);
-		if (!server_command_path.startsWith('/')) {
-			server_command_path = `$HOME/${server_command_path}`;
+		let server_install_path = config.server_install_path(os, arch);
+		if (!server_install_path.startsWith('/')) {
+			server_install_path = `$HOME/${server_install_path}`;
 		}
 		const server_tarball_url = config.server_download_url(os, arch);
 
+		let server_command_full_path = "unknown";
 		// do it properly
 		if (isNaN(port)) {
 			logger.appendLine("preparing server control script");
 
+			const server_application_name = config.server_application_name();
 			await guest.write_executable_file(
 				control_script_path,
-				setup.get_control_script(server_command_path)
+				setup.get_control_script(server_install_path, server_application_name)
 			);
 
 			logger.appendLine(`control script written to ${control_script_path}`);
-
-			if (!await guest.is_file(server_command_path)) {
-				logger.appendLine("server not installed, start downloading");
+			server_command_full_path = await guest.find_file_by_name(server_install_path, server_application_name);
+			if (!await guest.is_file(server_command_full_path)) {
+				logger.appendLine(`server not installed, start downloading from: ${server_tarball_url}`);
 				const buffer = await setup.download_server_tarball(server_tarball_url);
-				logger.appendLine("server downloaded, extracting");
+				logger.appendLine(`server downloaded, extracting into: ${server_install_path}`);
 				await guest.exec_with_input(buffer, control_script_path, "install");
 				logger.appendLine("server installed");
 			}
@@ -126,7 +128,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 						os,
 						arch,
 						control_script_path,
-						server_command_path,
+						server_command_full_path,
 						server_tarball_url,
 						server_session_dir,
 						port

@@ -203,6 +203,20 @@ export class GuestContainer {
 	}
 
 	/**
+	 * execute command `find $path -name $name`
+	 *
+	 * `findutils` is installed by distrobox
+	 */
+	public async find_file_by_name(path: string, name: string): Promise<string> {
+		try {
+			const output = await this.exec("bash", "-c", `find "${path}" -name "${name}"`);
+			return output.stdout.trim()
+		} catch {
+			return ""
+		}
+	}
+
+	/**
 	 * exec: run the command in the guest container using `distrobox enter`
 	 *
 	 * just a wrapper for promisified `child_process.execFile`

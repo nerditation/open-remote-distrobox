@@ -127,9 +127,10 @@ export function server_install_path(os: string, arch: string): string {
 	info.version = info.version.replace('-insider', '');
 	return fill_template(template, info);
 }
+
 /**
  * return the path to the server executable
  */
-export function server_command_path(os: string, arch: string): string {
-	return `${server_install_path(os, arch)}/bin/${_VSCODE_PRODUCT_JSON.serverApplicationName}`;
+export function server_application_name(): string {
+	return _VSCODE_PRODUCT_JSON.serverApplicationName;
 }

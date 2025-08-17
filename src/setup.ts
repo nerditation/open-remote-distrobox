@@ -212,7 +212,7 @@ export async function download_server_tarball(url: string,): Promise<Buffer> {
  * - `flock` from `util-linux`, to synchronize potential concurrent access
  *   - busybox should also be ok.
  */
-export function get_control_script(server_command_path: string) {
+export function get_control_script(server_install_path: string, server_application_name: string) {
 	const env = vscode.workspace.getConfiguration().get<Record<string, string | boolean>>("distroboxRemoteServer.launch.environment") ?? {};
 	const exports = [];
 	for (const name in env) {
@@ -229,7 +229,8 @@ export function get_control_script(server_command_path: string) {
 	return `#!/bin/bash
 
 # configuration
-SERVER_COMMAND=${server_command_path}
+SERVER_INSTALL_DIR="${server_install_path}"
+SERVER_COMMAND=$(find "$SERVER_INSTALL_DIR" -name "${server_application_name}")
 SESSION_DIR="$(dirname "$(realpath "$0")")"
 
 
@@ -354,7 +355,7 @@ stop_server() {
 # extract the server tarball
 install_server() {
 	# SERVER_COMMAND is in the format $HOME/.vscodium-server/bin/codium-reh-OS-VERSION/bin/codium-server
-	SERVER_INSTALL_DIR="$(dirname "$(dirname "$SERVER_COMMAND")")"
+	#SERVER_INSTALL_DIR="$(dirname "$(dirname "$SERVER_COMMAND")")"
 	mkdir -p "$SERVER_INSTALL_DIR"
 	exec tar -xz -C "$SERVER_INSTALL_DIR"
 }
