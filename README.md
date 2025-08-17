@@ -1,6 +1,6 @@
 # open-remote-distrobox
 
-[vscodium] remote development for distrobox
+[vscodium] remote development for [distrobox]
 
 
 ## overview
@@ -123,6 +123,14 @@ this extension neither depends on, nor conflicts with [vscode-remote-oss].
 
 I wrote and tested this extension for [vscodium], it probably won't work with
 other `vscode` distributions.
+
+starting from version 0.3, it should also support cursor, but I haven't tested
+it throughly as I don't use cursor personally, but PRs are welcome. it seems
+to be working just fine based on user feedback in issue #2 though.
+
+the main difference between cursor and vscodium seems to be how they created
+their server packages. but since cursor's source code is not publicly available,
+this is all based on guess work.
 
 this extension registered the remote authority `distrobox`, so it will be
 automatically activated when a url like this is opened:
