@@ -78,8 +78,8 @@
 				"icon": "$(trash)"
 			},
 			{
-				"command": "open-remote-distrobox.delete-control-script",
-				"title": "Delete the Existing (Outdated) Control Script for a Guest",
+				"command": "open-remote-distrobox.cleanup-session-files",
+				"title": "Clean Up Leftover Files from Previous (Maybe Crashed) Session",
 				"category": "Distrobox",
 				"icon": "$(sync)"
 			}

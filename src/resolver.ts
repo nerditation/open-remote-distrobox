@@ -195,16 +195,19 @@ export function register_distrobox_remote_authority_resolver(g: ExtensionGlobals
 				await reopen_in_container(guest_name);
 			}
 		}),
-		vscode.commands.registerCommand("open-remote-distrobox.delete-control-script", async (guest?: string | GuestContainer) => {
+		vscode.commands.registerCommand("open-remote-distrobox.cleanup-session-files", async (guest?: string | GuestContainer) => {
 			const guest_name = await normalize_command_argument(g.container_manager, guest);
 			if (guest_name) {
+				if (vscode.env.remoteAuthority == `distrobox+${encodeURIComponent(guest_name)}`) {
+					vscode.window.showInformationMessage("to run this command, please close remote connection first");
+					return;
+				}
 				const guest = await g.container_manager.get(guest_name);
 				const [os, arch] = await setup.detect_platform(guest);
 				const server_session_dir_name = `distrobox-vscodium-server-${config.session_identifier(os, arch, guest_name)}`;
-				const control_script_name = `control-${g.context.extension.packageJSON.version}.sh`;
-				const full_path = `$XDG_RUNTIME_DIR/${server_session_dir_name}/${control_script_name}`;
-				await guest.exec("bash", "-c", `rm -f "${full_path}"`);
-				vscode.window.showInformationMessage(`control script ${full_path} deleted, next time you connect to guest ${guest_name}, a new script will be generated`);
+				const full_path = `$XDG_RUNTIME_DIR/${server_session_dir_name}`;
+				await guest.exec("bash", "-c", `rm -rf "${full_path}"`);
+				vscode.window.showInformationMessage(`session directory ${full_path} has been deleted, if your previous remote session crashed, the server might be still running, it is recommended to manually kill the server processes or stop and restart the guest container ${guest_name}`);
 			}
 		})
 	);
