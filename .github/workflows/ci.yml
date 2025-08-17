@@ -1,0 +1,38 @@
+
+# build and lint
+
+name: ci
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out source code
+        uses: actions/checkout@v4
+      - name: package version
+        run: |
+          PKGVER=$(node -e 'console.log(require("./package.json").version)')
+          if [[ "v$PKGVER" != "${{ github.ref_name }}" ]]; then
+            echo NOTE: no tag or tag name does not match package version
+          fi
+          echo PKGVER=$PKGVER >> $GITHUB_ENV
+      - name: setup package manager
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - name: setup node with package cache
+        uses: actions/setup-node@v4
+        with:
+          cache: pnpm
+      - name: compile and lint
+        run: |
+          pnpm install
+          pnpm run compile
+          pnpm run lint
+      - name: generate vsix package
+        run: pnpm run package
