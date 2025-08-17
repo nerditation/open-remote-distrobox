@@ -39,4 +39,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: dev-package
-          path: *.vsix
+          path: ./*.vsix
