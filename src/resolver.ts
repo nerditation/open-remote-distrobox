@@ -143,6 +143,7 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 	// distrobox guests share the host network, so port forwarding is just nop
 	tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Thenable<vscode.Tunnel> | undefined {
 		const host = tunnelOptions.remoteAddress.host;
+		this.g.logger.appendLine(`forwarding port for ${host}`);
 		// this should be unnecessary, I'm just paranoid, just in case.
 		if (host != "localhost"
 			&& host != "127.0.0.1"
@@ -150,7 +151,6 @@ class RemoteAuthorityResolver implements vscode.RemoteAuthorityResolver {
 			&& host != "*"
 			&& host != "0.0.0.0"
 			&& host != "::") {
-			this.g.logger.appendLine(`forwarding port for ${host}`);
 			return undefined;
 		}
 		return new Promise((resolve, reject) => {
