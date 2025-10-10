@@ -248,7 +248,7 @@ status() {
 		echo "server is running"
 		echo "client count: $(cat "$COUNT_FILE")"
 		echo "pid1: $(cat "$PID1_FILE"), pid2: $(cat "$PID2_FILE")"
-		echo "socket: $(ss -tlnp | grep ":$(cat "$PORT_FILE")")"
+		echo "socket: $(lsof -iTCP:$(cat "$PORT_FILE") -sTCP:LISTEN)"
 		echo "-----------------------------------------------------------"
 		cat "$LOG_FILE"
 	else
@@ -262,7 +262,7 @@ connect_server() {
 	# make sure server process is still running
 	if [[ -f "$PID2_FILE" ]] && kill -0 $(cat "$PID2_FILE") 2>/dev/null; then
 		# check the port is open and is bound by the server process
-		if [[ -z "$(ss -tlnp | grep ":$(cat $PORT_FILE)" | grep "pid=$(cat "$PID2_FILE")")" ]]; then
+		if [[ "$(lsof -iTCP:$(cat "$PORT_FILE") -sTCP:LISTEN  -t)" != "$(cat "$PID2_FILE")" ]]; then
 			stop_server
 			echo STALE
 		else
