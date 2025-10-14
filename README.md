@@ -9,9 +9,9 @@ this extension serves similar purpose to [open-remote-wsl], except it is for
 [distrobox] on Linux hosts instead of wsl on Windows.
 
 for an explanation of vscodium remote development mechanism, please read the
-documentation of [vscode-remote-oss]. [vscode-remote-oss] requires the user
+documentation of [vscode-remote-oss]. `vscode-remote-oss` requires the user
 to manually run the remote extension host and configure the tcp port. if you
-only use [vscode-remote-oss] for distrobox, this extension just automate the
+only use `vscode-remote-oss` for distrobox, this extension just automate the
 boring work for you.
 
 
@@ -26,6 +26,20 @@ I try to support these use cases:
   - will use `host-spawn` to run the `distrobox` command
 
 I didn't test the extension for all these scenarios, any feedbacks are welcome.
+
+> [!IMPORTANT]
+>
+> if you created your guest containers using the default `distrobox` options,
+> everything should work. some non-default options might not be supported.
+>
+> first of all, this extension assumes the guest containers are sharing the
+> host network namespace. it does **NOT** support guest containers which were
+> created with the `--unshare-netns` option of the `distrobox create` command.
+>
+> also, the "reopen in distrobox guest" command assumes the guest system shares
+> the user home directory with the host system. if your guest sytem had a
+> custom home directory, this command would fail to map a host path into a
+> guest path.
 
 
 ## getting started
@@ -71,6 +85,10 @@ to it. if you have a workspace open, you can reopen it inside the container.
 these commands are also available if you click the "remote indicator" in the
 bottom left corner of the window, on the status bar.
 
+all commands are registered in the `Distrobox` category, you can open the
+command palette (`Ctrl + Shift + P`) and type `Distrobox:` to view all available
+commands.
+
 I also created a simple UI for as wrapper for the `distrobox create|rm` commands,
 but these are not related to remote server setup and autority resolution. it
 just felt incomplet to me that I have a list of guests, but I cannot add to it
@@ -112,7 +130,7 @@ them into the `host-spawn` command, such as `foo=123 bar=456 host-spawn --env fo
 
 however, this has the drawback that if you changed the host environment variables,
 the change will not be applied to the remote server. in such cases, you need to
-run the command `open-remote-distrobox.delete-control-script` manually, which
+run the command `open-remote-distrobox.cleanup-session-files` manually, which
 will delete the existing control script so a new script will be generated
 next time you connect to the guest.
 
