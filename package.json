@@ -238,31 +238,33 @@
 		"clean": "rm -rf out"
 	},
 	"devDependencies": {
-		"@types/node": "^20.17.19",
+		"@types/node": "^20.19.33",
 		"@types/which": "^3.0.4",
 		"@typescript-eslint/eslint-plugin": "^7.18.0",
 		"@typescript-eslint/parser": "^7.18.0",
 		"@vscode/dts": "^0.4.1",
-		"@vscode/vsce": "^3.2.2",
+		"@vscode/vsce": "^3.7.1",
 		"eslint": "^8.57.1",
-		"ovsx": "^0.10.1",
-		"tsup": "^8.3.6",
-		"typescript": "^5.7.3",
+		"ovsx": "^0.10.9",
+		"tsup": "^8.5.1",
+		"typescript": "^5.9.3",
 		"which": "^5.0.0"
 	},
 	"pnpm": {
 		"overrides": {
 			"esbuild": ">=0.25",
 			"tar-fs": ">=3.1.1",
-			"undici": ">=6.21.2",
+			"undici": ">=7.18.2",
 			"form-data": ">=4.0.4",
 			"brace-expansion": ">=2.0.2",
 			"tmp": ">=0.2.4",
 			"js-yaml": ">=4.1.1",
 			"glob": ">=11.1.0",
 			"jws": ">=4.0.1",
-			"qs": ">=6.14.1",
-			"@isaacs/brace-expansion": ">=5.0.1"
+			"qs": ">=6.14.2",
+			"@isaacs/brace-expansion": ">=5.0.1",
+			"ajv": ">=8.18.0",
+			"markdown-it": ">=14.1.1"
 		}
 	},
 	"tsup": {
