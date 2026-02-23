@@ -307,8 +307,8 @@ start_server() {
 		--host localhost \\
 		--port 0 \\
 		--without-connection-token \\
-		2>&1 \\
 		>"$LOG_FILE" \\
+		2>&1 \\
 		&
 
 	# save the wrapper pid1, the node pid2 needs to be found later
